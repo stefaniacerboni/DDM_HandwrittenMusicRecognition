@@ -99,7 +99,6 @@ def process_output(output_matrix, label_mapping=None):
             symbol_list.append(symbols)
     symbol_strings = ['~'.join(sym) for sym in symbol_list]
     # Return the list of symbol strings
-    print(symbol_strings)
     return symbol_strings
 
 
@@ -108,7 +107,7 @@ root_dir = "words"
 thresh_file_train = "gt_final.train.thresh"
 train_dataset = CustomDataset(root_dir, thresh_file_train)
 # Use DataLoader to load data in parallel and move to GPU
-batch_size = 8
+batch_size = 1
 train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=True, num_workers=4,
                           pin_memory=True)
 
@@ -118,16 +117,17 @@ train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=colla
 model = OMRModel(input_channels=1, num_pitch_classes=14, num_rhythm_classes=32)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Load the saved model's state dictionary
-#model.load_state_dict(torch.load('trained_model10epoch.pth'))
+#model.load_state_dict(torch.load('trained_model40epoch.pth'))
 model.to(device)
 
 # Define the loss function
 criterion = nn.SmoothL1Loss()
 # Define the optimizer (e.g., SGD)
-optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-5)
+optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=1e-5)
 
 num_epochs = 10
 if __name__ == '__main__':
+    '''
     for epoch in range(num_epochs):
         model.train()  # Set the model to training mode
         total_loss = 0.0
@@ -141,14 +141,16 @@ if __name__ == '__main__':
                 # Forward pass
                 rhythm_output, pitch_output = model(batch_images)
 
+                #process_output(rhythm_output, rhythm_mapping)
+
                 # Expand the ground truth labels to match the output size
-                expanded_rhythm_labels = F.interpolate(batch_rhythm_labels.permute(0, 2, 1),
-                                                       size=rhythm_output.size(1), mode='linear').permute(0, 2, 1)
-                expanded_pitch_labels = F.interpolate(batch_pitch_labels.permute(0, 2, 1),
-                                                      size=pitch_output.size(1), mode='linear').permute(0, 2, 1)
+                downsampled_rhythm_probs = F.interpolate(rhythm_output.permute(0, 2, 1),
+                                                       size=batch_rhythm_labels.size(1), mode='linear').permute(0, 2, 1)
+                downsampled_pitch_probs = F.interpolate(pitch_output.permute(0, 2, 1),
+                                                      size=batch_pitch_labels.size(1), mode='linear').permute(0, 2, 1)
                 # Compute the loss
-                loss_rhythm = criterion(rhythm_output, expanded_rhythm_labels)
-                loss_pitch = criterion(pitch_output, expanded_pitch_labels)
+                loss_rhythm = criterion(downsampled_rhythm_probs, batch_rhythm_labels)
+                loss_pitch = criterion(downsampled_pitch_probs, batch_pitch_labels)
                 loss = loss_rhythm + loss_pitch
 
                 # Backpropagation and parameter update
@@ -173,7 +175,7 @@ if __name__ == '__main__':
     torch.save(model.state_dict(), 'trained_model10epoch.pth')
     # Clear GPU cache at the end of the training
     torch.cuda.empty_cache()
-
+    '''
     # Load the saved model's state dictionary
     model.load_state_dict(torch.load('trained_model10epoch.pth'))
     # Validation Dataset
@@ -203,14 +205,14 @@ if __name__ == '__main__':
             rhythm_output_valid, pitch_output_valid = model(batch_images_valid)
 
             # Expand the ground truth labels to match the output size
-            expanded_rhythm_labels = F.interpolate(batch_rhythm_labels_valid.permute(0, 2, 1),
-                                                   size=rhythm_output_valid.size(1), mode='linear').permute(0, 2, 1)
-            expanded_pitch_labels = F.interpolate(batch_pitch_labels_valid.permute(0, 2, 1),
-                                                  size=pitch_output_valid.size(1), mode='linear').permute(0, 2, 1)
+            downsampled_rhythm_probs = F.interpolate(rhythm_output_valid.permute(0, 2, 1),
+                                                     size=batch_rhythm_labels_valid.size(1), mode='linear').permute(0, 2, 1)
+            downsampled_pitch_probs = F.interpolate(pitch_output_valid.permute(0, 2, 1),
+                                                    size=batch_pitch_labels_valid.size(1), mode='linear').permute(0, 2, 1)
 
             # Compute the loss for the validation set
-            loss_rhythm_valid = criterion(rhythm_output_valid, expanded_rhythm_labels)
-            loss_pitch_valid = criterion(pitch_output_valid, expanded_pitch_labels)
+            loss_rhythm_valid = criterion(downsampled_rhythm_probs, batch_rhythm_labels_valid)
+            loss_pitch_valid = criterion(downsampled_pitch_probs, batch_pitch_labels_valid)
             loss_valid = loss_rhythm_valid + loss_pitch_valid
 
             total_loss_valid += loss_valid.item()
@@ -237,16 +239,17 @@ if __name__ == '__main__':
             # Forward pass (no need to compute gradients)
             rhythm_output_test, pitch_output_test = model(batch_images_test)
 
-            process_output(rhythm_output_test, rhythm_mapping)
             # Expand the ground truth labels to match the output size
-            expanded_rhythm_labels = F.interpolate(batch_rhythm_labels_test.permute(0, 2, 1),
-                                                   size=rhythm_output_test.size(1), mode='linear').permute(0, 2, 1)
-            expanded_pitch_labels = F.interpolate(batch_pitch_labels_test.permute(0, 2, 1),
-                                                  size=pitch_output_test.size(1), mode='linear').permute(0, 2, 1)
+            downsampled_rhythm_probs = F.interpolate(rhythm_output_test.permute(0, 2, 1),
+                                                     size=batch_rhythm_labels_test.size(1), mode='linear').permute(0, 2, 1)
+            downsampled_pitch_probs = F.interpolate(pitch_output_test.permute(0, 2, 1),
+                                                    size=batch_pitch_labels_test.size(1), mode='linear').permute(0, 2, 1)
+            print(process_output(rhythm_output_test, rhythm_mapping))
+            #print(process_output(downsampled_pitch_probs, rhythm_mapping))
 
             # Compute the loss for the test set
-            loss_rhythm_test = criterion(rhythm_output_test, expanded_rhythm_labels)
-            loss_pitch_test = criterion(pitch_output_test, expanded_pitch_labels)
+            loss_rhythm_test = criterion(downsampled_rhythm_probs, batch_rhythm_labels_test)
+            loss_pitch_test = criterion(downsampled_pitch_probs, batch_pitch_labels_test)
             loss_test = loss_rhythm_test + loss_pitch_test
 
             total_loss_test += loss_test.item()

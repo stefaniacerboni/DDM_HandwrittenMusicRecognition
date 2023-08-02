@@ -18,7 +18,7 @@ class OMRModel(nn.Module):
         self.maxpool = nn.MaxPool2d(kernel_size=(2, 1))
 
         # Recurrent Block with BLSTM layers
-        self.recurrent_block = nn.LSTM(input_size=64, hidden_size=128, num_layers=4, batch_first=True,
+        self.recurrent_block = nn.LSTM(input_size=25*64, hidden_size=128, num_layers=4, batch_first=True,
                                        bidirectional=True)
 
         # Dense Layers for rhythm and pitch
@@ -39,7 +39,32 @@ class OMRModel(nn.Module):
         x = self.bn3(x)
         x = self.relu(x)
 
-        # Reshape the output to (batch_size, sequence_length (widthxheight), num_features)
+        # Reshape the output to (batch_size, width (sequence_length), height * num_features)
+        batch_size, num_features, height, width = x.size()
+        # Assuming x is the tensor after the Convolutional Block with shape (batch_size, num_features, height, width)
+        # Reshape the tensor to (batch_size, width, height, num_features)
+        x = x.permute(0, 3, 2, 1).contiguous()
+        # Reshape the tensor to (batch_size, width, height=25 * num_features=64)
+        x = x.view(batch_size, width, -1)
+
+        # Pass the output through the Recurrent Block
+        x, _ = self.recurrent_block(x)
+
+        # Forward pass
+        rhythm_logits = self.rhythm_output(x)
+        pitch_logits = self.pitch_output(x)
+
+        # Apply sigmoid activation to get probabilities
+        rhythm_probs = torch.sigmoid(rhythm_logits)
+        pitch_probs = torch.sigmoid(pitch_logits)
+
+        # Return the probability matrices for rhythm and pitch predictions
+        return rhythm_probs, pitch_probs
+
+
+'''        
+old version
+# Reshape the output to (batch_size, sequence_length (widthxheight), num_features)
         batch_size, num_features, height, width = x.size()
         # Assuming x is the tensor after the Convolutional Block with shape (batch_size, num_features, height, width)
         # Reshape the tensor to (batch_size, width * height, num_features)
@@ -63,4 +88,4 @@ class OMRModel(nn.Module):
         pitch_probs = torch.sigmoid(pitch_logits)
 
         # Return the probability matrices for rhythm and pitch predictions
-        return rhythm_probs, pitch_probs
+        return rhythm_probs, pitch_probs'''
