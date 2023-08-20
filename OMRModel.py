@@ -18,12 +18,12 @@ class OMRModel(nn.Module):
         self.maxpool = nn.MaxPool2d(kernel_size=(2, 1))
 
         # Recurrent Block with BLSTM layers
-        self.recurrent_block = nn.LSTM(input_size=25*64, hidden_size=128, num_layers=4, batch_first=True,
+        self.recurrent_block = nn.LSTM(input_size=25*64, hidden_size=512, num_layers=4, batch_first=True,
                                        bidirectional=True)
 
         # Dense Layers for rhythm and pitch
-        self.rhythm_output = nn.Linear(2 * 128, num_rhythm_classes)
-        self.pitch_output = nn.Linear(2 * 128, num_pitch_classes)
+        self.rhythm_output = nn.Linear(2 * 512, num_rhythm_classes)
+        self.pitch_output = nn.Linear(2 * 512, num_pitch_classes)
 
     def forward(self, x):
         # Pass the input through the Convolutional Block
@@ -54,13 +54,26 @@ class OMRModel(nn.Module):
         rhythm_logits = self.rhythm_output(x)
         pitch_logits = self.pitch_output(x)
 
+        rhythm_probs = torch.sigmoid(rhythm_logits)
+        pitch_probs = torch.sigmoid(pitch_logits)
+        # Return the probability matrices for rhythm and pitch predictions
+        return rhythm_probs, pitch_probs
+
+'''
         # Apply sigmoid activation to get probabilities
         rhythm_probs = torch.sigmoid(rhythm_logits)
         pitch_probs = torch.sigmoid(pitch_logits)
 
-        # Return the probability matrices for rhythm and pitch predictions
-        return rhythm_probs, pitch_probs
+        # Apply thresholding
+        rhythm_probs_thresholded = (rhythm_probs > 0.5).float()
+        pitch_probs_thresholded = (pitch_probs > 0.5).float()
 
+        rhythm_probs_thresholded.requires_grad = True
+        pitch_probs_thresholded.requires_grad = True
+
+        # Return the probability matrices for rhythm and pitch predictions
+        return rhythm_probs_thresholded, pitch_probs_thresholded
+'''
 
 '''        
 old version

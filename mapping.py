@@ -1,5 +1,6 @@
+# Rhythm mapping
 rhythm_mapping = {
-    0: 'epsilon',
+    0: 'blank',
     1: 'barline_light',
     2: 'barline_light-light',
     3: 'beam8thDown',
@@ -30,12 +31,13 @@ rhythm_mapping = {
     28: 'steamQuarterHalfDown',
     29: 'steamQuarterHalfUp',
     30: 'timeSig_common',
-    31: '32thRest'
+    31: '32thRest',
+    32: 'epsilon'
 }
-inverse_rhythm_mapping = {value: key for key, value in rhythm_mapping.items()}
 
+# Hard-coded modified pitch mapping
 pitch_mapping = {
-    0: 'epsilon',
+    0: 'blank',
     1: 'noNote',
     2: 'L1',
     3: 'L2',
@@ -48,8 +50,61 @@ pitch_mapping = {
     10: 'S3',
     11: 'S4',
     12: 'S5',
-    13: 'S6'
+    13: 'S6',
+    14: 'epsilon'
 }
 
-inverse_pitch_mapping = {value: key for key, value in pitch_mapping.items()}
+# inverse mappings
+inverse_rhythm_mapping = {
+    'blank':0,
+    'barline_light': 1,
+    'barline_light-light': 2,
+    'beam8thDown': 3,
+    'beam8thUp': 4,
+    'beamDownEnd': 5,
+    'beamDownStart': 6,
+    'beamUpEnd': 7,
+    'beamUpStart': 8,
+    'C-Clef': 9,
+    'dot': 10,
+    'eighthRest': 11,
+    'endSlur': 12,
+    'flag16thDown': 13,
+    'flag8thDown': 14,
+    'flag8thUp': 15,
+    'flat': 16,
+    'halfRest': 17,
+    'mmrSymbol_1': 18,
+    'mmrSymbol_2': 19,
+    'mmrSymbol_3': 20,
+    'natural': 21,
+    'noteheadBlack': 22,
+    'noteheadHalf': 23,
+    'noteheadWhole': 24,
+    'quarterRest': 25,
+    'sharp': 26,
+    'startSlur': 27,
+    'steamQuarterHalfDown': 28,
+    'steamQuarterHalfUp': 29,
+    'timeSig_common': 30,
+    '32thRest': 31,
+    'epsilon': 32
+}
 
+inverse_pitch_mapping = {
+    'blank': 0,
+    'noNote': 1,
+    'L1': 2,
+    'L2': 3,
+    'L3': 4,
+    'L4': 5,
+    'L5': 6,
+    'L6': 7,
+    'S1': 8,
+    'S2': 9,
+    'S3': 10,
+    'S4': 11,
+    'S5': 12,
+    'S6': 13,
+    'epsilon': 14
+}
