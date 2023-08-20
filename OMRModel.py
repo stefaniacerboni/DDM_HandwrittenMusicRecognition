@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class OMRModel(nn.Module):
@@ -18,7 +17,7 @@ class OMRModel(nn.Module):
         self.maxpool = nn.MaxPool2d(kernel_size=(2, 1))
 
         # Recurrent Block with BLSTM layers
-        self.recurrent_block = nn.LSTM(input_size=25*64, hidden_size=512, num_layers=4, batch_first=True,
+        self.recurrent_block = nn.LSTM(input_size=25 * 64, hidden_size=512, num_layers=4, batch_first=True,
                                        bidirectional=True)
 
         # Dense Layers for rhythm and pitch
@@ -58,6 +57,7 @@ class OMRModel(nn.Module):
         pitch_probs = torch.sigmoid(pitch_logits)
         # Return the probability matrices for rhythm and pitch predictions
         return rhythm_probs, pitch_probs
+
 
 '''
         # Apply sigmoid activation to get probabilities

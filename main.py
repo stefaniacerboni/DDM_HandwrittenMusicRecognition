@@ -1,18 +1,15 @@
 # Standard imports
-import numpy as np
 import matplotlib.pyplot as plt
-from torch.nn.utils.rnn import pad_sequence
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+
 from CustomDataset import CustomDataset
 from CustomDatasetResnet import CustomDatasetResnet
-from OMRModel import OMRModel
 from OMRModelResNet18 import OMRModelResNet18
-from Seq2Seq import Seq2Seq
 from mapping import rhythm_mapping, pitch_mapping, inverse_rhythm_mapping, inverse_pitch_mapping
 
 plt.style.use('dark_background')
@@ -31,8 +28,9 @@ def show_images(num_images, dataloader, images_per_row=4):
     plt.tight_layout()
     plt.show()
 
-#Preprocess dell'input nel modello originale. Le immagini non hanno la stessa dimensione,  vanno adattate
-#alla dimensione massima del batch
+
+# Preprocess dell'input nel modello originale. Le immagini non hanno la stessa dimensione,  vanno adattate
+# alla dimensione massima del batch
 def collate_fn(batch):
     # Get the maximum width within the batch
     max_width = max(item[0].size(2) for item in batch)
@@ -59,10 +57,11 @@ def collate_fn(batch):
 
     return images, torch.tensor(padded_rhythm_labels), torch.tensor(padded_pitch_labels)
 
-#Preprocess dell'input nel modello con la Resnet. Le immagini hanno già tutte la stessa dimensione, non vanno adattate
-#alla dimensione massima del batch (le immagini di una resnet devono avere dimensione 224x224). Si paddano solo le
-#sequenze, con "-1". Nel calcolo della CTC vengono considerati solo i valori >0 nelle sequenze, in modo da non
-#"sporcare" l'apprendimento
+
+# Preprocess dell'input nel modello con la Resnet. Le immagini hanno già tutte la stessa dimensione, non vanno adattate
+# alla dimensione massima del batch (le immagini di una resnet devono avere dimensione 224x224). Si paddano solo le
+# sequenze, con "-1". Nel calcolo della CTC vengono considerati solo i valori >0 nelle sequenze, in modo da non
+# "sporcare" l'apprendimento
 def collate_fn2(batch):
     images = torch.stack([item[0] for item in batch])
     rhythm_labels_list = [item[1] for item in batch]
@@ -81,7 +80,8 @@ def collate_fn2(batch):
 
     return images, torch.tensor(padded_rhythm_labels), torch.tensor(padded_pitch_labels)
 
-#TODO: probabilmente da togliere, era l'algoritmo che avevo implementato per ottenere la sequenza in uscita a partire dalle matrici di output
+
+# TODO: probabilmente da togliere, era l'algoritmo che avevo implementato per ottenere la sequenza in uscita a partire dalle matrici di output
 def process_output(rhythm_matrix, pitch_matrix):
     # Apply thresholding
     binary_rhythm_matrix = (rhythm_matrix > 0.5).float()
@@ -100,14 +100,14 @@ def process_output(rhythm_matrix, pitch_matrix):
         symbol_pitch_indices = (symbol_pitch_vector == 1).nonzero().squeeze()
         # Get the corresponding labels using the index-to-label mapping
         if symbol_rhythm_indices.dim() == 0:
-            symbols_rhythm = [rhythm_mapping[symbol_rhythm_indices.item()+1]]
+            symbols_rhythm = [rhythm_mapping[symbol_rhythm_indices.item() + 1]]
         else:
-            symbols_rhythm = [rhythm_mapping[i.item()+1] for i in symbol_rhythm_indices]
+            symbols_rhythm = [rhythm_mapping[i.item() + 1] for i in symbol_rhythm_indices]
         # Get the corresponding labels using the index-to-label mapping
         if symbol_pitch_indices.dim() == 0:
-            symbols_pitch = [pitch_mapping[symbol_pitch_indices.item()+1]]
+            symbols_pitch = [pitch_mapping[symbol_pitch_indices.item() + 1]]
         else:
-            symbols_pitch = [pitch_mapping[i.item()+1] for i in symbol_pitch_indices]
+            symbols_pitch = [pitch_mapping[i.item() + 1] for i in symbol_pitch_indices]
         # Join the symbols for each pixel column into a string
         rhythm_list.append(symbols_rhythm)
         pitch_list.append(symbols_pitch)
@@ -123,7 +123,8 @@ def process_output(rhythm_matrix, pitch_matrix):
     # Return the list of symbol strings
     return symbol_strings
 
-#TODO: da rivedere, teoricamente è l'algoritmo che viene utilizzato per decifrare l'output di una rete trainata con CTC
+
+# TODO: da rivedere, teoricamente è l'algoritmo che viene utilizzato per decifrare l'output di una rete trainata con CTC
 def beam_search(probs, label_map, beam_width):
     T, C = probs.shape  # T: time steps, C: number of classes
 
@@ -152,9 +153,9 @@ def beam_search(probs, label_map, beam_width):
                 if c != 0 and c != prev_label:
                     new_prob = hypothesis['probability'] * binary_matrix[t, c] * binary_matrix[t, prev_label]
 
-                    #new_prob = hypothesis['probability'] * binary_matrix[t, c]
-                #else:
-                    #new_prob = hypothesis['probability'] * binary_matrix[t, c] * binary_matrix[t, prev_label]
+                    # new_prob = hypothesis['probability'] * binary_matrix[t, c]
+                    # else:
+                    # new_prob = hypothesis['probability'] * binary_matrix[t, c] * binary_matrix[t, prev_label]
 
                     new_labels = hypothesis['labels'] + [c]
                     new_beam.append({'labels': new_labels, 'probability': new_prob})
@@ -176,7 +177,8 @@ def beam_search(probs, label_map, beam_width):
 
     return decoded_sequences
 
-#TODO: DA RAFFINARE: prima implementazione del SER da utilizzare in validation
+
+# TODO: DA RAFFINARE: prima implementazione del SER da utilizzare in validation
 
 def cer_wer(decoded_sequence, ground_truth_sequence):
     S = sum(1 for x, y in zip(decoded_sequence, ground_truth_sequence) if x != y)
@@ -196,14 +198,14 @@ batch_size = 16
 train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate_fn2, shuffle=True, num_workers=4,
                           pin_memory=True)
 
-#show_images(10, train_loader)
+# show_images(10, train_loader)
 
 # Initialize the model and move it to the GPU
 model = OMRModelResNet18(num_pitch_classes=15, num_rhythm_classes=33)
-#model = Seq2Seq(vocab_size=100)
+# model = Seq2Seq(vocab_size=100)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Load the saved model's state dictionary
-#model.load_state_dict(torch.load('saveModels/trained_model10epoch001lr.pth'))
+# model.load_state_dict(torch.load('saveModels/trained_model10epoch001lr.pth'))
 model.to(device)
 
 # Define the optimizer (e.g., SGD)
@@ -228,9 +230,9 @@ if __name__ == '__main__':
 
                 log_softmax = nn.LogSoftmax(dim=2)
 
-                #print(beam_search(rhythm_output[0], rhythm_mapping, 10))
+                # print(beam_search(rhythm_output[0], rhythm_mapping, 10))
 
-                #process_output(rhythm_output[0], pitch_output[0])
+                # process_output(rhythm_output[0], pitch_output[0])
 
                 # log softmax
                 log_probs_rhythm = log_softmax(rhythm_output)
@@ -245,8 +247,10 @@ if __name__ == '__main__':
                 sequence_lengths = [len([label for label in row if label >= 0]) for row in batch_rhythm_labels]
                 # Convert the sequence lengths list to a tensor
                 seq_lengths = torch.tensor(sequence_lengths)
-                loss_rhythm = ctc_loss(log_probs_rhythm.permute(1, 0, 2), batch_rhythm_labels[batch_rhythm_labels >= 0].view(-1), pred_size, seq_lengths)
-                loss_pitch = ctc_loss(log_probs_pitch.permute(1, 0, 2), batch_pitch_labels[batch_pitch_labels >= 0].view(-1), pred_size, seq_lengths)
+                loss_rhythm = ctc_loss(log_probs_rhythm.permute(1, 0, 2),
+                                       batch_rhythm_labels[batch_rhythm_labels >= 0].view(-1), pred_size, seq_lengths)
+                loss_pitch = ctc_loss(log_probs_pitch.permute(1, 0, 2),
+                                      batch_pitch_labels[batch_pitch_labels >= 0].view(-1), pred_size, seq_lengths)
                 loss = loss_rhythm + loss_pitch
 
                 # Backpropagation and parameter update
@@ -301,12 +305,14 @@ if __name__ == '__main__':
                 rhythm_labels_unpadded = batch_rhythm_labels_valid[i][batch_rhythm_labels_valid[i] >= 0]
                 pitch_labels_unpadded = batch_pitch_labels_valid[i][batch_pitch_labels_valid[i] >= 0]
 
-                #batch_labels_recombined = [rhythm_mapping[s1.item()] + "." + pitch_mapping[s2.item()] if s1.item() != 0 else 'epsilon'
-                 #                          for s1, s2 in zip(rhythm_labels_unpadded, batch_pitch_labels_valid)]
+                # batch_labels_recombined = [rhythm_mapping[s1.item()] + "." + pitch_mapping[s2.item()] if s1.item() != 0 else 'epsilon'
+                #                          for s1, s2 in zip(rhythm_labels_unpadded, batch_pitch_labels_valid)]
                 batch_labels_recombined = []
                 for j in range(len(rhythm_labels_unpadded)):
                     if rhythm_labels_unpadded[j].item() != 0:
-                        batch_labels_recombined.append(rhythm_mapping[rhythm_labels_unpadded[j].item()]+ "." + pitch_mapping[pitch_labels_unpadded[j].item()])
+                        batch_labels_recombined.append(
+                            rhythm_mapping[rhythm_labels_unpadded[j].item()] + "." + pitch_mapping[
+                                pitch_labels_unpadded[j].item()])
                     else:
                         batch_labels_recombined.append(rhythm_mapping[rhythm_labels_unpadded[j].item()])
 

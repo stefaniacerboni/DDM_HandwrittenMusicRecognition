@@ -62,7 +62,7 @@ class VGG19BN(nn.Module):
             nn.Conv2d(512, 512, kernel_size=3, padding=1),
             nn.BatchNorm2d(512),
             nn.ReLU(inplace=True),
-            #nn.MaxPool2d(kernel_size=2, stride=2) last max-pooling layer removed
+            # nn.MaxPool2d(kernel_size=2, stride=2) last max-pooling layer removed
         )
         self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
         self.classifier = nn.Sequential(

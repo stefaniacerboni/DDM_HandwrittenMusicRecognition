@@ -1,7 +1,8 @@
 import os
+
+from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
-from PIL import Image
 
 
 class CustomDatasetResnet(Dataset):
@@ -71,4 +72,3 @@ class ResizeAndPad:
         canvas.paste(resized_img, (0, top_padding))
 
         return canvas
-

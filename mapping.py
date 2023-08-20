@@ -56,7 +56,7 @@ pitch_mapping = {
 
 # inverse mappings
 inverse_rhythm_mapping = {
-    'blank':0,
+    'blank': 0,
     'barline_light': 1,
     'barline_light-light': 2,
     'beam8thDown': 3,

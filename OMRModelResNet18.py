@@ -33,7 +33,7 @@ class OMRModelResNet18(nn.Module):
         # Reshape the tensor to (batch_size, width, height, num_features)
         x = x.permute(0, 3, 2, 1).contiguous()
         # Reshape the tensor to (batch_size, width, height=112 * num_features=64)
-        x = x.view(batch_size, width, height*num_features)
+        x = x.view(batch_size, width, height * num_features)
 
         # Pass the output through the Recurrent Block
         x, _ = self.recurrent_block(x)
