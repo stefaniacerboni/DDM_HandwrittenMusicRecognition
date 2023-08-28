@@ -13,9 +13,15 @@ class OMRModelResNet18(nn.Module):
         self.conv1 = resnet18.conv1
         self.bn1 = resnet18.bn1
         self.relu = resnet18.relu
+        self.layer1 = resnet18.layer1
+        self.layer2 = resnet18.layer2
+        self.layer3 = resnet18.layer3
+        #self.conv1 = resnet18.conv1
+        #self.bn1 = resnet18.bn1
+        #self.relu = resnet18.relu
 
         # Recurrent Block with BLSTM layers
-        self.recurrent_block = nn.LSTM(input_size=64 * 112, hidden_size=512, num_layers=4, batch_first=True,
+        self.recurrent_block = nn.LSTM(input_size=128 * 56, hidden_size=512, num_layers=4, batch_first=True,
                                        bidirectional=True)
 
         # Dense Layers for rhythm and pitch
@@ -27,12 +33,15 @@ class OMRModelResNet18(nn.Module):
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        #x = self.layer3(x)
 
         # Reshape the output to (batch_size, width (sequence_length), height * num_features)
         batch_size, num_features, height, width = x.size()
         # Reshape the tensor to (batch_size, width, height, num_features)
         x = x.permute(0, 3, 2, 1).contiguous()
-        # Reshape the tensor to (batch_size, width, height=112 * num_features=64)
+        # Reshape the tensor to (batch_size, width, height=56 * num_features=128)
         x = x.view(batch_size, width, height * num_features)
 
         # Pass the output through the Recurrent Block
@@ -42,7 +51,7 @@ class OMRModelResNet18(nn.Module):
         rhythm_logits = self.rhythm_output(x)
         pitch_logits = self.pitch_output(x)
 
-        rhythm_probs = torch.softmax(rhythm_logits, dim=2)
-        pitch_probs = torch.softmax(pitch_logits, dim=2)
+        rhythm_probs = torch.sigmoid(rhythm_logits)
+        pitch_probs = torch.sigmoid(pitch_logits)
         # Return the probability matrices for rhythm and pitch predictions
         return rhythm_probs, pitch_probs

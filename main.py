@@ -191,10 +191,10 @@ def cer_wer(decoded_sequence, ground_truth_sequence):
 
 # Create the custom dataset
 root_dir = "words"
-thresh_file_train = "gt_final.train.thresh"
+thresh_file_train = "gt_final.train_copy.thresh"
 train_dataset = CustomDatasetResnet(root_dir, thresh_file_train)
 # Use DataLoader to load data in parallel and move to GPU
-batch_size = 16
+batch_size = 1
 train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate_fn2, shuffle=True, num_workers=4,
                           pin_memory=True)
 
@@ -203,14 +203,15 @@ train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=colla
 # Initialize the model and move it to the GPU
 model = OMRModelResNet18(num_pitch_classes=15, num_rhythm_classes=33)
 # model = Seq2Seq(vocab_size=100)
+#device = torch.device("cpu")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Load the saved model's state dictionary
-# model.load_state_dict(torch.load('saveModels/trained_model10epoch001lr.pth'))
+model.load_state_dict(torch.load('saveModels/model_checkpoint_epoch_60.pt'))
 model.to(device)
 
 # Define the optimizer (e.g., SGD)
-optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=1e-4)
-num_epochs = 10
+optimizer = torch.optim.SGD(model.parameters(), lr=0.05, momentum=0.9, weight_decay=1e-4)
+num_epochs = 100
 if __name__ == '__main__':
     for epoch in range(num_epochs):
         model.train()  # Set the model to training mode
@@ -226,11 +227,11 @@ if __name__ == '__main__':
 
                 # Forward pass
                 rhythm_output, pitch_output = model(batch_images)
-                output_seq = model(batch_images, batch_rhythm_labels[:, :-1])
+                # output_seq = model(batch_images, batch_rhythm_labels[:, :-1])
 
                 log_softmax = nn.LogSoftmax(dim=2)
 
-                # print(beam_search(rhythm_output[0], rhythm_mapping, 10))
+                print(beam_search(rhythm_output[0], rhythm_mapping, 10))
 
                 # process_output(rhythm_output[0], pitch_output[0])
 
@@ -264,7 +265,7 @@ if __name__ == '__main__':
         # Print the average loss for the epoch
         average_loss = total_loss / len(train_loader)
         print(f"Epoch [{epoch + 1}/{num_epochs}] - Loss: {average_loss:.4f}")
-        if epoch % 10 == 0:
+        if epoch % 10 == 0 and epoch != 0:
             save_path = f"saveModels/model_checkpoint_epoch_{epoch}.pt"
             torch.save(model.state_dict(), save_path)
             print(f"Model saved at epoch {epoch} - Checkpoint: {save_path}")
@@ -273,7 +274,7 @@ if __name__ == '__main__':
     # Clear GPU cache at the end of the training
     torch.cuda.empty_cache()
     # Load the saved model's state dictionary
-    model.load_state_dict(torch.load('saveModels/trained_model10epoch.pth'))
+    # model.load_state_dict(torch.load('saveModels/trained_model10epoch.pth'))
     # Validation Dataset
     thresh_file_valid = "gt_final.valid.thresh"
     valid_dataset = CustomDatasetResnet(root_dir, thresh_file_valid)
