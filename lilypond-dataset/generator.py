@@ -5,8 +5,9 @@ import os
 import numpy as np
 from pdf2image import convert_from_path
 from PIL import Image, ImageOps
-from new_mapping import human_readable_rhythm_mapping, human_readable_pitch_mapping
+from tqdm import tqdm
 
+from new_mapping import human_readable_rhythm_mapping, human_readable_pitch_mapping
 
 header = '''\\version "2.24.2"
 \\paper {
@@ -33,7 +34,6 @@ lilypond_cclef_mapping = {
     'C-Clef.L5': '\\revert Staff.Clef.stencil \\clef "baritone"',
 }
 
-# Rhythm mapping for Lilypond
 lilypond_rhythm_mapping = {
     'blank': '',
     'epsilon': '',
@@ -124,6 +124,8 @@ treble_base_octave_index = 4
 c_treble_base_index = treble_base_octave_index * len(ordered_positions)
 
 
+# Funzione che a partire dalla posizione della nota sul pentagramma e la chiave in uso
+# restituisce la nota musicale e la sua ottava
 def get_note_octave(position, clef="treble"):
     if position in ['blank', 'epsilon', 'noNote']:
         return ['', '']
@@ -134,13 +136,13 @@ def get_note_octave(position, clef="treble"):
     note_index = adjusted_absolute_position_index % len(notes)
     octave_index = 4 + (adjusted_absolute_position_index - c_treble_base_index) // len(notes)
 
-    # Ottieni la nota e l'ottava corrispondenti
     note = notes[note_index]
     octave = octaves[octave_index]
 
     return [note, octave]
 
 
+# Funzione che a partire dal simbolo in sintassi per OMR e chiave in uso restituisce la rispettiva sintassi Lilypond
 def omr_to_lilypond(symbol, clef):
     if symbol == "epsilon":
         return
@@ -155,6 +157,7 @@ def omr_to_lilypond(symbol, clef):
     return duration.replace("{note}", note[0]).replace("{octave}", note[1])
 
 
+# Funzione che converte un pdf in immagine e la ritaglia al contenuto aggiungendo un certo margine
 def pdf_to_cropped_png(pdf_path, output_path, margin=10):
     # Converti il PDF in immagine
     page = convert_from_path(pdf_path)[0]
@@ -183,12 +186,6 @@ def pdf_to_cropped_png(pdf_path, output_path, margin=10):
     cropped_with_margin.save(f"{output_path}.png", "PNG")
 
 
-num_bars = 1470
-starting_from = 0
-num_symbols = random.randint(3, 8)
-annotations_output = "lilypond.train.thresh"
-thresh_out = open(annotations_output, 'w')
-
 excluding_values = ['blank', 'epsilon', 'barline', 'C-Clef', 'startSlur', 'endSlur', 'timeSig_common']
 symbols = [value for value in human_readable_rhythm_mapping.values() if value not in excluding_values]
 notesOfLength = {
@@ -198,80 +195,83 @@ notesOfLength = {
 }
 pitches = list(human_readable_pitch_mapping.values())[3:]  # Exclude blank, epsilon, noNote
 
-for idx in range(starting_from, starting_from+num_bars):
-    annotation = []
-    thresh_out.write(f"00_{idx}$166|")
-    lilypond_output = f"words/00_{idx}.ly"
-    lily_out = open(lilypond_output, 'w')
-    lily_out.write(header)
-    clef = 'treble'
 
-    # Inserisce chiave e indicazione tempo, o linea di battuta
-    if random.randint(1, 2) == 1:
-        clef = "C-Clef." + random.choice(['L1', 'L2', 'L3', 'L4', 'L5'])
-        thresh_out.write(clef)
-        thresh_out.write("~epsilon~timeSig_common.noNote~")
+def generate_dataset(annotations_output, num_bars=1, starting_from=0, num_symbols=random.randint(3, 8)):
+    thresh_out = open(annotations_output, 'w')
+    for idx in tqdm(range(starting_from, starting_from + num_bars)):
+        annotation = []
+        thresh_out.write(f"00_{idx}$166|")
+        lilypond_output = f"words/00_{idx}.ly"
+        lily_out = open(lilypond_output, 'w')
+        lily_out.write(header)
+        clef = 'treble'
+
+        # Inserisce chiave e indicazione tempo, o linea di battuta
+        if random.randint(1, 2) == 1:
+            clef = "C-Clef." + random.choice(['L1', 'L2', 'L3', 'L4', 'L5'])
+            thresh_out.write(clef)
+            thresh_out.write("~epsilon~timeSig_common.noNote~")
+            lily_out.write(
+                "\\cadenzaOn\n" +
+                lilypond_cclef_mapping.get(clef) + " \\revert Staff.TimeSignature.stencil \\time 4/4\n"
+            )
+        else:
+            thresh_out.write("barline.noNote~")
+            lily_out.write(
+                "\\once \n" +
+                "\\override Score.TimeSignature.transparent = ##t \n" +
+                "\\time 1/4 \n" +
+                "s4 \n" +
+                "\\cadenzaOn\n "
+            )
+
+        # Genera casualmente un elenco di simboli ammissibili
+        for _ in range(num_symbols):
+            rhythm = random.choice(symbols)
+            pitch = random.choice(pitches) if "Note" in rhythm else "noNote"
+            annotation.append(f"{rhythm}.{pitch}")
+
+        # Se la sequenza è abbastanza lunga, inserisce casualmente una legatura
+        if len(annotation) > 6 and random.choice([True, False]):
+            start_slur_index = random.randint(1, 4)
+            end_slur_index = random.randint(start_slur_index + 2, len(annotation) - 1)
+            annotation.insert(start_slur_index, "startSlur.noNote")
+            annotation.insert(end_slur_index, "endSlur.noNote")
+
+        # Inserisce linea di battuta finale
+        annotation.append("barline.noNote")
+
+        # Traduce i simboli estratti casualmente in sintassi Lilypond e li scrive sul file .ly
+        for symbol in annotation:
+            lilypond_syntax = omr_to_lilypond(symbol, clef)
+            lily_out.write(lilypond_syntax + ' ')
+
+        # Chiude il file .ly inserendo un segmento di pentagramma aggiuntivo
         lily_out.write(
-            "\\cadenzaOn\n" +
-            lilypond_cclef_mapping.get(clef) + " \\revert Staff.TimeSignature.stencil \\time 4/4\n"
-        )
-    else:
-        thresh_out.write("barline.noNote~")
-        lily_out.write(
+            "\n" +
+            "\\cadenzaOff \n"
             "\\once \n" +
             "\\override Score.TimeSignature.transparent = ##t \n" +
-            "\\time 1/4 \n" +
-            "s4 \n" +
-            "\\cadenzaOn\n "
+            "\\time 1/16 \n" +
+            "s32 \n"
+            "}"
         )
+        lily_out.close()
 
-    # Genera casualmente un elenco di simboli ammissibili
-    for _ in range(num_symbols):
-        rhythm = random.choice(symbols)
-        pitch = random.choice(pitches) if "Note" in rhythm else "noNote"
-        annotation.append(f"{rhythm}.{pitch}")
-        # Per note più brevi o uguali a 1/8, casualmente ne aggiunge altre della stessa lunghezza per originare barre
-        for noteLength in notesOfLength.keys():
-            if noteLength in rhythm:
-                for i in range(random.randint(0, 2)):
-                    rhythm = random.choice(notesOfLength.get(noteLength))
-                    pitch = random.choice(pitches)
-                    annotation.append(f"{rhythm}.{pitch}")
+        thresh_out.write("~epsilon~".join(annotation) + '\n')
 
-    # Se la sequenza è abbastanza lunga, inserisce casualmente una legatura
-    if len(annotation) > 6 and random.choice([True, False]):
-        start_slur_index = random.randint(1, 4)
-        end_slur_index = random.randint(start_slur_index + 2, len(annotation) - 1)
-        annotation.insert(start_slur_index, "startSlur.noNote")
-        annotation.insert(end_slur_index, "endSlur.noNote")
+        # Conversione file .ly in .pdf
+        result = subprocess.run(["lilypond", "-o", f"words/00_{idx}", lilypond_output], capture_output=True, text=True)
 
-    # Inserisce linea di battuta finale
-    annotation.append("barline.noNote")
+        pdf_to_cropped_png(f"words/00_{idx}.pdf", f"words/00_{idx}")
 
-    # Traduce i simboli estratti casualmente in sintassi Lilypond e li scrive sul file .ly
-    for symbol in annotation:
-        lilypond_syntax = omr_to_lilypond(symbol, clef)
-        lily_out.write(lilypond_syntax + ' ')
+        os.remove(f"words/00_{idx}.pdf")
+        os.remove(f"words/00_{idx}.ly")
 
-    # Chiude il file .ly inserendo un segmento di pentagramma aggiuntivo
-    lily_out.write(
-        "\n" +
-        "\\cadenzaOff \n"
-        "\\once \n" +
-        "\\override Score.TimeSignature.transparent = ##t \n" +
-        "\\time 1/16 \n" +
-        "s32 \n"
-        "}"
-    )
-    lily_out.close()
 
-    thresh_out.write("~epsilon~".join(annotation) + '\n')
-
-    # Conversione file .ly in .pdf
-    result = subprocess.run(["lilypond", "-o", f"words/00_{idx}", lilypond_output], capture_output=True, text=True)
-
-    pdf_to_cropped_png(f"words/00_{idx}.pdf", f"words/00_{idx}")
-
-    os.remove(f"words/00_{idx}.pdf")
-    os.remove(f"words/00_{idx}.ly")
-
+times_historical_dataset = 5
+generate_dataset("lilypond.train.thresh", num_bars=147 * times_historical_dataset, starting_from=0)
+generate_dataset("lilypond.valid.thresh", num_bars=49 * times_historical_dataset,
+                 starting_from=147 * times_historical_dataset)
+generate_dataset("lilypond.test.thresh", num_bars=49 * times_historical_dataset,
+                 starting_from=(147 + 49) * times_historical_dataset)
