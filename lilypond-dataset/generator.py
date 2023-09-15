@@ -159,30 +159,15 @@ def omr_to_lilypond(symbol, clef):
 
 # Funzione che converte un pdf in immagine e la ritaglia al contenuto aggiungendo un certo margine
 def pdf_to_cropped_png(pdf_path, output_path, margin=10):
-    # Converti il PDF in immagine
     page = convert_from_path(pdf_path)[0]
-
-    # Converti l'immagine PIL in array numpy per OpenCV
     img_np = np.array(page)
-
-    # Converti in scala di grigi
     gray = cv2.cvtColor(img_np, cv2.COLOR_BGR2GRAY)
-
-    # Trova i contorni
     _, thresh = cv2.threshold(gray, 240, 255,
-                              cv2.THRESH_BINARY_INV)  # 240 è una soglia approssimativa, potrebbe aver bisogno di regolazione
+                              cv2.THRESH_BINARY_INV)
     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    # Calcola il bounding box basato sui contorni
     x, y, w, h = cv2.boundingRect(np.concatenate(contours))
-
-    # Ritaglia l'immagine usando PIL
     cropped = page.crop((x, y, x + w, y + h))
-
-    # Aggiunge un margine
     cropped_with_margin = ImageOps.expand(cropped, border=margin, fill='white')
-
-    # Salva l'immagine PNG
     cropped_with_margin.save(f"{output_path}.png", "PNG")
 
 
@@ -196,7 +181,7 @@ notesOfLength = {
 pitches = list(human_readable_pitch_mapping.values())[3:]  # Exclude blank, epsilon, noNote
 
 
-def generate_dataset(annotations_output, num_bars=1, starting_from=0, num_symbols=random.randint(3, 8)):
+def generate_dataset(annotations_output, num_bars=1, starting_from=0):
     thresh_out = open(annotations_output, 'w')
     for idx in tqdm(range(starting_from, starting_from + num_bars)):
         annotation = []
@@ -226,7 +211,7 @@ def generate_dataset(annotations_output, num_bars=1, starting_from=0, num_symbol
             )
 
         # Genera casualmente un elenco di simboli ammissibili
-        for _ in range(num_symbols):
+        for _ in range(random.randint(1, 8)):
             rhythm = random.choice(symbols)
             pitch = random.choice(pitches) if "Note" in rhythm else "noNote"
             annotation.append(f"{rhythm}.{pitch}")
