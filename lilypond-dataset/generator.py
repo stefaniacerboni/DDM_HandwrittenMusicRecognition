@@ -195,13 +195,13 @@ def generate_dataset(annotations_output, num_bars=1, starting_from=0):
         if random.randint(1, 2) == 1:
             clef = "C-Clef." + random.choice(['L1', 'L2', 'L3', 'L4', 'L5'])
             thresh_out.write(clef)
-            thresh_out.write("~epsilon~timeSig_common.noNote~")
+            thresh_out.write("~epsilon~timeSig_common.noNote~epsilon~")
             lily_out.write(
                 "\\cadenzaOn\n" +
                 lilypond_cclef_mapping.get(clef) + " \\revert Staff.TimeSignature.stencil \\time 4/4\n"
             )
         else:
-            thresh_out.write("barline.noNote~")
+            thresh_out.write("barline.noNote~epsilon~")
             lily_out.write(
                 "\\once \n" +
                 "\\override Score.TimeSignature.transparent = ##t \n" +
