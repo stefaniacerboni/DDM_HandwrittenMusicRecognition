@@ -4,12 +4,13 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, SubsetRandomSampler, random_split, ConcatDataset
 from tqdm import tqdm
 
 from CustomDatasetResnet import CustomDatasetResnet
 from OMRModelResNet18 import OMRModelResNet18
-from mapping import rhythm_mapping, pitch_mapping, inverse_rhythm_mapping, inverse_pitch_mapping
+#from mapping import rhythm_mapping, pitch_mapping, inverse_rhythm_mapping, inverse_pitch_mapping
+from new_mapping import rhythm_mapping, pitch_mapping, inverse_rhythm_mapping, inverse_pitch_mapping
 
 plt.style.use('dark_background')
 
@@ -145,7 +146,7 @@ def validate():
 
                 batch_labels_recombined = []
                 for j in range(len(rhythm_labels_unpadded)):
-                    if rhythm_labels_unpadded[j].item() != 32:
+                    if rhythm_labels_unpadded[j].item() != 1:
                         batch_labels_recombined.append(
                             rhythm_mapping[rhythm_labels_unpadded[j].item()] + "." + pitch_mapping[
                                 pitch_labels_unpadded[j].item()])
@@ -157,13 +158,14 @@ def validate():
 
                 total_loss_valid += loss
         # Return the average validation loss
-        average_loss_valid = total_loss_valid / len(valid_loader.dataset)
-        return average_loss_valid
+        #average_loss_valid = total_loss_valid / len(valid_loader.dataset)
+        return 0
 
-
+'''
 # Create the custom dataset
-root_dir = "words"
-thresh_file_train = "gt_final.train.thresh"
+root_dir = "lilypond-dataset/words"
+#thresh_file_train = "gt_final.train.thresh"
+thresh_file_train = "lilypond-dataset/lilypond.train.thresh"
 train_dataset = CustomDatasetResnet(root_dir, thresh_file_train)
 # Use DataLoader to load data in parallel and move to GPU
 batch_size = 16
@@ -171,30 +173,73 @@ train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=colla
                           pin_memory=True)
 
 # Validation Dataset
-thresh_file_valid = "gt_final.valid.thresh"
+#thresh_file_valid = "gt_final.valid.thresh"
+thresh_file_valid = "lilypond-dataset/lilypond.valid.thresh"
 valid_dataset = CustomDatasetResnet(root_dir, thresh_file_valid)
 # Create data loaders for validation and test sets
 valid_loader = DataLoader(dataset=valid_dataset, batch_size=batch_size, collate_fn=collate_fn2, shuffle=False,
                           num_workers=4,
                           pin_memory=True)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate_fn2, shuffle=True, num_workers=4,
+                          pin_memory=True)
+'''
+historical_root_dir = "words"
+thresh_file_train = "gt_final.train.thresh"
+historical_dataset = CustomDatasetResnet(historical_root_dir, thresh_file_train)
+synthetic_root_dir = "lilypond-dataset/words"
+thresh_file_train = "lilypond-dataset/lilypond.train.thresh"
+synthetic_dataset = CustomDatasetResnet(synthetic_root_dir, thresh_file_train)
+# Use DataLoader to load data in parallel and move to GPU
+batch_size = 16
+
 
 # Initialize the model and move it to the GPU
-model = OMRModelResNet18(num_rhythm_classes=33, num_pitch_classes=15)
+#model = OMRModelResNet18(num_rhythm_classes=33, num_pitch_classes=15)
+model = OMRModelResNet18(num_rhythm_classes=63, num_pitch_classes=17)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Load the saved model's state dictionary
-model.load_state_dict(torch.load('saveModels/resnet18/model_checkpoint_epoch_90.pt'))
+#model.load_state_dict(torch.load('saveModels/lilypond/model_checkpoint_epoch_100.pt'))
 model.to(device)
 # Define the optimizer
 optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
-num_epochs = 250
+num_epochs = 50
 best_val_loss = float('inf')
-patience = 6  # Number of epochs with increasing validation loss to tolerate
+patience = 1  # Number of epochs with increasing validation loss to tolerate
 current_patience = 0
+
+# Define the ratios of historical and synthetic data at each epoch
+data_ratios = [(0.1, 0.9), (0.2, 0.8), ..., (0.9, 0.1)]
+
+# Calculate the dataset sizes based on proportions
+total_samples = len(historical_dataset) + len(synthetic_dataset)
+initial_historical_size = int(0.1 * total_samples)
+final_historical_size = int(0.9 * total_samples)
+
+# Create data loaders for the initial proportions
+initial_synthetic_data, initial_historical_data = random_split(
+    ConcatDataset([synthetic_dataset, historical_dataset]),
+    [initial_historical_size, total_samples - initial_historical_size]
+)
+current_data_loader = DataLoader(initial_synthetic_data, batch_size=batch_size, shuffle=True)
 if __name__ == '__main__':
     for epoch in range(num_epochs):
+        if epoch + 1 % 10 == 0:
+            current_proportion = 0.9 - (epoch // 10) * 0.1
+            current_synthetic_size = int(current_proportion * total_samples)
+
+            # Split the datasets based on the current proportion
+            current_synthetic_data, current_historical_data = random_split(
+                ConcatDataset([synthetic_dataset, historical_dataset]),
+                [current_synthetic_size, total_samples - current_synthetic_size]
+            )
+
+            # Create a new data loader with the current proportions
+            current_data_loader = DataLoader(current_synthetic_data, batch_size=batch_size, shuffle=True)
+
+        # Training loop
         model.train()  # Set the model to training mode
         total_loss = 0.0
-        with tqdm(train_loader, unit="batch") as tepoch:  # Wrap the train_loader with tqdm for the progress bar
+        with tqdm(current_data_loader, unit="batch") as tepoch:  # Wrap the train_loader with tqdm for the progress bar
             for batch_images, batch_rhythm_labels, batch_pitch_labels in tepoch:
                 # Transfer data to the device (GPU if available)
                 batch_images = batch_images.to(device)
@@ -232,10 +277,10 @@ if __name__ == '__main__':
                 # Update the progress bar
                 tepoch.set_postfix(loss=total_loss / len(tepoch))  # Display average loss in the progress bar
         # Print the average loss for the epoch
-        average_loss = total_loss / len(train_loader)
+        average_loss = total_loss / len(current_data_loader)
         print(f"Epoch [{epoch + 1}/{num_epochs}] - Loss: {average_loss:.4f}")
         if (epoch+1) % 10 == 0:
-            save_path = f"saveModels/resnet18/model_checkpoint_epoch_{epoch+1}.pt"
+            save_path = f"saveModels/lilypond/model_checkpoint_epoch_{epoch+1}.pt"
             torch.save(model.state_dict(), save_path)
             print(f"Model saved at epoch {epoch+1} - Checkpoint: {save_path}")
             avg_val_loss = validate()
@@ -254,8 +299,8 @@ if __name__ == '__main__':
     # Clear GPU cache at the end of the training
     torch.cuda.empty_cache()
     # Test Dataset
-    thresh_file_test = "gt_final.test.thresh"
-    test_dataset = CustomDatasetResnet(root_dir, thresh_file_test)
+    thresh_file_test = "lilypond-dataset/lilypond.test.thresh"
+    test_dataset = CustomDatasetResnet(historical_root_dir, thresh_file_test)
 
     test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=False,
                              num_workers=4,
@@ -279,7 +324,7 @@ if __name__ == '__main__':
 
                 batch_labels_recombined = []
                 for j in range(len(rhythm_labels_unpadded)):
-                    if rhythm_labels_unpadded[j].item() != 32:
+                    if rhythm_labels_unpadded[j].item() != 1:
                         batch_labels_recombined.append(
                             rhythm_mapping[rhythm_labels_unpadded[j].item()] + "." + pitch_mapping[
                                 pitch_labels_unpadded[j].item()])
@@ -290,4 +335,4 @@ if __name__ == '__main__':
                 total_loss_test += loss
         # Print the average Test loss
         average_loss_test = total_loss_test / len(test_loader.dataset)
-        print(f"Test Loss: {average_loss_test:.4f}")
+        print(f"Test SER: {average_loss_test:.4f}")

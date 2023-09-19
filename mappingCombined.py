@@ -96,8 +96,7 @@ combined_mapping = {
     94: 'steamQuarterHalfUp.noNote',
     95: 'timeSig_common.noNote',
     96: '32thRest.noNote',
-    97: 'epsilon',
-    98: 'blank'
+    97: 'epsilon'
 }
 inverse_mapping = {
     'barline_light.noNote': 0,
@@ -197,6 +196,5 @@ inverse_mapping = {
     'steamQuarterHalfUp.noNote': 94,
     'timeSig_common.noNote': 95,
     '32thRest.noNote': 96,
-    'epsilon': 97,
-    'blank': 98
+    'epsilon': 97
 }

@@ -1,4 +1,4 @@
-from new_mapping import human_readable_rhythm_mapping, human_readable_pitch_mapping
+from new_mapping import human_readable_rhythm_mapping
 
 conversion_map = {
     "blank": "blank",

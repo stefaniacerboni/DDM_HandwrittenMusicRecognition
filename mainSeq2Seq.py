@@ -93,9 +93,9 @@ valid_loader = DataLoader(dataset=valid_dataset, batch_size=batch_size, collate_
                           pin_memory=True)
 vocab_size = 98
 model = Seq2Seq(vocab_size)
-model.load_state_dict(torch.load('saveModels/model_checkpoint_epoch_250.pt'))
+model.load_state_dict(torch.load('saveModels/seq2seq/model_checkpoint_epoch_70.pt'))
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-#device = "cpu"
+
 model.to(device)
 optimizer = torch.optim.SGD(model.parameters(), lr=0.005, momentum=0.9, weight_decay=1e-4)
 num_epochs = 250
@@ -104,7 +104,6 @@ patience = 5  # Number of epochs with increasing validation loss to tolerate
 current_patience = 0
 
 if __name__ == '__main__':
-    '''
     for epoch in range(num_epochs):
         model.train()  # Set the model to training mode
         total_loss = 0.0
@@ -149,7 +148,6 @@ if __name__ == '__main__':
                     print("Early stopping triggered.")
                     break
         torch.cuda.empty_cache()
-        '''
     # Test Dataset
     thresh_file_test = "gt_final.test.thresh"
     test_dataset = CustomDatasetSeq2Seq(root_dir, thresh_file_test)
@@ -177,10 +175,11 @@ if __name__ == '__main__':
                     else:
                         if batch_labels_remapped[len(batch_labels_remapped) - 1] != combined_mapping[batch_labels[i][j].item()]:
                             batch_labels_remapped.append(combined_mapping[batch_labels[i][j].item()])
+                print(process_output(output_seq[i]))
                 loss = cer_wer(process_output(output_seq[i]), "~".join(batch_labels_remapped))
                 total_loss_test += loss
         # Print the average Test loss
         average_loss_test = total_loss_test / len(test_loader.dataset)
-        print(f"Test Loss: {average_loss_test:.4f}")
+        print(f"Test SER: {average_loss_test:.4f}")
 
 
