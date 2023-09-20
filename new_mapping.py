@@ -369,3 +369,51 @@ inverse_human_readable_pitch_mapping = {
     'S5': 55,
     'S6': 56
 }
+
+# Create a new mapping with incremental values
+new_mapping = {}
+current_value = 0
+
+# Iterate through inverse_rhythm_mapping and apply the specified rules
+for key, value in inverse_rhythm_mapping.items():
+    if key == 'blank':
+        continue
+    elif key == 'epsilon':
+        new_mapping[key] = current_value
+        current_value += 1
+    elif key in ['barline', 'startSlur', 'endSlur', 'timeSig_common']:
+        new_mapping[f'{key}.noNote'] = current_value
+        current_value += 1
+    elif key.endswith('Rest'):
+        new_mapping[f'{key}.noNote'] = current_value
+        current_value += 1
+    elif key == 'C-Clef':
+        for i in range(1, 6):
+            new_mapping[f'{key}.L{i}'] = current_value
+            current_value += 1
+    elif key.endswith('Note'):
+        for note_key in inverse_pitch_mapping.keys():
+            if note_key.startswith('L') or note_key.startswith('S'):
+                new_mapping[f'{key}.{note_key}'] = current_value
+                current_value += 1
+
+# Write the new mapping to a file
+with open("new_mapping_combined.py", "w") as file:
+    file.write("new_mapping_combined = {\n")
+    for key, value in new_mapping.items():
+        file.write(f"    '{key}': {value},\n")
+    file.write("}\n")
+
+print("Mapping has been written to 'new_mapping_combined.py'")
+
+# Create the inverse mapping
+inverse_mapping = {v: k for k, v in new_mapping.items()}
+
+# Write the inverse mapping to a file
+with open("inverse_mapping_combined.py", "w") as file:
+    file.write("inverse_mapping_combined = {\n")
+    for key, value in inverse_mapping.items():
+        file.write(f"    {key}: '{value}',\n")
+    file.write("}\n")
+
+print("Inverse mapping has been written to 'inverse_mapping_combined.py'")

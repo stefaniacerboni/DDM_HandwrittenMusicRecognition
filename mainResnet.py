@@ -130,7 +130,7 @@ def validate():
     # Validation loop
     with torch.no_grad():
         total_loss_valid = 0.0
-        for batch_images_valid, batch_rhythm_labels_valid, batch_pitch_labels_valid in valid_loader:
+        for batch_images_valid, batch_rhythm_labels_valid, batch_pitch_labels_valid in current_valid_data_loader:
             # Transfer data to the device (GPU if available)
             batch_images_valid = batch_images_valid.to(device)
             batch_rhythm_labels_valid = batch_rhythm_labels_valid.to(device)
@@ -158,8 +158,8 @@ def validate():
 
                 total_loss_valid += loss
         # Return the average validation loss
-        #average_loss_valid = total_loss_valid / len(valid_loader.dataset)
-        return 0
+        average_loss_valid = total_loss_valid / len(current_valid_data_loader.dataset)
+        return average_loss_valid
 
 '''
 # Create the custom dataset
@@ -184,11 +184,16 @@ train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=colla
                           pin_memory=True)
 '''
 historical_root_dir = "words"
-thresh_file_train = "gt_final.train.thresh"
-historical_dataset = CustomDatasetResnet(historical_root_dir, thresh_file_train)
+thresh_file_historical_train = "lilypond-dataset/newdef_gt_final.train.thresh"
+historical_dataset_train = CustomDatasetResnet(historical_root_dir, thresh_file_historical_train)
 synthetic_root_dir = "lilypond-dataset/words"
-thresh_file_train = "lilypond-dataset/lilypond.train.thresh"
-synthetic_dataset = CustomDatasetResnet(synthetic_root_dir, thresh_file_train)
+thresh_file_synthetic_train = "lilypond-dataset/lilypond.train.thresh"
+synthetic_dataset_train = CustomDatasetResnet(synthetic_root_dir, thresh_file_synthetic_train)
+
+thresh_file_historical_valid = "lilypond-dataset/newdef_gt_final.valid.thresh"
+historical_dataset_valid = CustomDatasetResnet(historical_root_dir, thresh_file_historical_valid)
+thresh_file_synthetic_valid = "lilypond-dataset/lilypond.valid.thresh"
+synthetic_dataset_valid = CustomDatasetResnet(synthetic_root_dir, thresh_file_synthetic_valid)
 # Use DataLoader to load data in parallel and move to GPU
 batch_size = 16
 
@@ -202,44 +207,70 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)
 # Define the optimizer
 optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
-num_epochs = 50
+num_epochs = 100
 best_val_loss = float('inf')
 patience = 1  # Number of epochs with increasing validation loss to tolerate
 current_patience = 0
 
-# Define the ratios of historical and synthetic data at each epoch
-data_ratios = [(0.1, 0.9), (0.2, 0.8), ..., (0.9, 0.1)]
-
 # Calculate the dataset sizes based on proportions
-total_samples = len(historical_dataset) + len(synthetic_dataset)
-initial_historical_size = int(0.1 * total_samples)
-final_historical_size = int(0.9 * total_samples)
+total_samples_train = len(historical_dataset_train)
+initial_historical_size_train = int(0.1 * total_samples_train)
 
 # Create data loaders for the initial proportions
-initial_synthetic_data, initial_historical_data = random_split(
-    ConcatDataset([synthetic_dataset, historical_dataset]),
-    [initial_historical_size, total_samples - initial_historical_size]
+initial_synthetic_data_train, _ = random_split(
+    synthetic_dataset_train,
+    [len(historical_dataset_train) - initial_historical_size_train, len(synthetic_dataset_train) - (len(historical_dataset_train) - initial_historical_size_train)]
 )
-current_data_loader = DataLoader(initial_synthetic_data, batch_size=batch_size, shuffle=True)
+initial_historical_data_train, _ = random_split(
+    historical_dataset_train,
+    [initial_historical_size_train, len(historical_dataset_train) - initial_historical_size_train ]
+)
+
+current_train_data_loader = DataLoader(ConcatDataset([initial_synthetic_data_train, initial_historical_data_train]), batch_size=batch_size, collate_fn=collate_fn, shuffle=True)
+current_valid_data_loader = DataLoader(synthetic_dataset_valid, batch_size=batch_size, collate_fn=collate_fn, shuffle=True)
+
 if __name__ == '__main__':
     for epoch in range(num_epochs):
         if epoch + 1 % 10 == 0:
-            current_proportion = 0.9 - (epoch // 10) * 0.1
-            current_synthetic_size = int(current_proportion * total_samples)
+            current_proportion = 0.1 + (epoch // 10) * 0.1
+            current_historical_size = int(current_proportion * total_samples_train)
 
-            # Split the datasets based on the current proportion
-            current_synthetic_data, current_historical_data = random_split(
-                ConcatDataset([synthetic_dataset, historical_dataset]),
-                [current_synthetic_size, total_samples - current_synthetic_size]
+            # Create data loaders for the initial proportions
+            current_synthetic_data_train, _ = random_split(
+                synthetic_dataset_train,
+                [len(historical_dataset_train) - current_historical_size,
+                 len(synthetic_dataset_train) - (len(historical_dataset_train) - current_historical_size)]
+            )
+            current_historical_data_train, _ = random_split(
+                historical_dataset_train,
+                [current_historical_size, len(historical_dataset_train) - current_historical_size]
             )
 
             # Create a new data loader with the current proportions
-            current_data_loader = DataLoader(current_synthetic_data, batch_size=batch_size, shuffle=True)
+            current_train_data_loader = DataLoader(ConcatDataset([current_synthetic_data_train, current_historical_data_train]), batch_size=batch_size, collate_fn=collate_fn, shuffle=True)
+
+            current_proportion_valid = 1.0 - (epoch // 10) * 0.1
+            current_historical_size_valid = int(current_proportion * len(historical_dataset_valid))
+
+            # Create data loaders for the initial proportions
+            current_synthetic_data_valid, _ = random_split(
+                synthetic_dataset_valid,
+                [len(historical_dataset_valid) - current_historical_size_valid,
+                 len(synthetic_dataset_valid) - (len(historical_dataset_valid) - current_historical_size_valid)]
+            )
+            current_historical_data_valid, _ = random_split(
+                historical_dataset_valid,
+                [current_historical_size_valid, len(historical_dataset_valid) - current_historical_size_valid]
+            )
+            # Create a new data loader with the current proportions
+            current_valid_data_loader = DataLoader(
+                ConcatDataset([current_synthetic_data_valid, current_historical_data_valid]), batch_size=batch_size, collate_fn=collate_fn,
+                shuffle=True)
 
         # Training loop
         model.train()  # Set the model to training mode
         total_loss = 0.0
-        with tqdm(current_data_loader, unit="batch") as tepoch:  # Wrap the train_loader with tqdm for the progress bar
+        with tqdm(current_train_data_loader, unit="batch") as tepoch:  # Wrap the train_loader with tqdm for the progress bar
             for batch_images, batch_rhythm_labels, batch_pitch_labels in tepoch:
                 # Transfer data to the device (GPU if available)
                 batch_images = batch_images.to(device)
@@ -277,14 +308,15 @@ if __name__ == '__main__':
                 # Update the progress bar
                 tepoch.set_postfix(loss=total_loss / len(tepoch))  # Display average loss in the progress bar
         # Print the average loss for the epoch
-        average_loss = total_loss / len(current_data_loader)
+        average_loss = total_loss / len(current_train_data_loader)
         print(f"Epoch [{epoch + 1}/{num_epochs}] - Loss: {average_loss:.4f}")
         if (epoch+1) % 10 == 0:
-            save_path = f"saveModels/lilypond/model_checkpoint_epoch_{epoch+1}.pt"
+            save_path = f"saveModels/combinedTraining/model_checkpoint_epoch_{epoch+1}.pt"
             torch.save(model.state_dict(), save_path)
             print(f"Model saved at epoch {epoch+1} - Checkpoint: {save_path}")
             avg_val_loss = validate()
             print(f"Epoch [{epoch + 1}/{num_epochs}] - Train Loss: {average_loss:.4f} - Val Loss: {avg_val_loss:.4f}")
+            '''
             # Check for early stopping
             if avg_val_loss < best_val_loss:
                 best_val_loss = avg_val_loss
@@ -294,12 +326,13 @@ if __name__ == '__main__':
                 if current_patience >= patience:
                     print("Early stopping triggered.")
                     break
+                    '''
         torch.cuda.empty_cache()
     #torch.save(model.state_dict(), 'saveModels/trained_model005lr.pth')
     # Clear GPU cache at the end of the training
     torch.cuda.empty_cache()
     # Test Dataset
-    thresh_file_test = "lilypond-dataset/lilypond.test.thresh"
+    thresh_file_test = "lilypond-dataset/newdef_gt_final.test.thresh"
     test_dataset = CustomDatasetResnet(historical_root_dir, thresh_file_test)
 
     test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=False,
