@@ -4,7 +4,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, SubsetRandomSampler, random_split, ConcatDataset
+from utils import *
+from torch.utils.data import DataLoader, random_split, ConcatDataset
 from tqdm import tqdm
 
 from CustomDatasetResnet import CustomDatasetResnet
@@ -62,6 +63,7 @@ def collate_fn(batch):
 # alla dimensione massima del batch (le immagini di una resnet devono avere dimensione 224x224). Si paddano solo le
 # sequenze, con "-1". Nel calcolo della CTC vengono considerati solo i valori >0 nelle sequenze, in modo da non
 # "sporcare" l'apprendimento
+'''
 def collate_fn2(batch):
     images = torch.stack([item[0] for item in batch])
     rhythm_labels_list = [item[1] for item in batch]
@@ -79,7 +81,7 @@ def collate_fn2(batch):
     padded_pitch_labels = [row + [-1] * (max_sequence_length - len(row)) for row in batch_pitch_labels_encoded]
 
     return images, torch.tensor(padded_rhythm_labels), torch.tensor(padded_pitch_labels)
-
+'''
 
 def process_output(rhythm_probs, pitch_probs):
     # 1. Estrazione dei Simboli Massimi
@@ -114,15 +116,6 @@ def process_output(rhythm_probs, pitch_probs):
     sequence = "~".join(combined_symbols)
 
     return sequence
-
-
-def cer_wer(decoded_sequence, ground_truth_sequence):
-    S = sum(1 for x, y in zip(decoded_sequence, ground_truth_sequence) if x != y)
-    D = abs(len(decoded_sequence) - len(ground_truth_sequence))
-    I = abs(len(decoded_sequence) - len(ground_truth_sequence))
-    N = len(ground_truth_sequence)
-    cer = (S + D + I) / N
-    return cer
 
 
 def validate():
@@ -163,7 +156,7 @@ def validate():
 
 '''
 # Create the custom dataset
-root_dir = "lilypond-dataset/words"
+root_dir = "historical-dataset/words"
 #thresh_file_train = "gt_final.train.thresh"
 thresh_file_train = "lilypond-dataset/lilypond.train.thresh"
 train_dataset = CustomDatasetResnet(root_dir, thresh_file_train)
@@ -183,16 +176,16 @@ valid_loader = DataLoader(dataset=valid_dataset, batch_size=batch_size, collate_
 train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate_fn2, shuffle=True, num_workers=4,
                           pin_memory=True)
 '''
-historical_root_dir = "words"
-thresh_file_historical_train = "lilypond-dataset/newdef_gt_final.train.thresh"
+historical_root_dir = "../historical-dataset/words"
+thresh_file_historical_train = "../historical-dataset/newdef_gt_final.train.thresh"
 historical_dataset_train = CustomDatasetResnet(historical_root_dir, thresh_file_historical_train)
-synthetic_root_dir = "lilypond-dataset/words"
-thresh_file_synthetic_train = "lilypond-dataset/lilypond.train.thresh"
+synthetic_root_dir = "../lilypond-dataset/words"
+thresh_file_synthetic_train = "../lilypond-dataset/lilypond.train.thresh"
 synthetic_dataset_train = CustomDatasetResnet(synthetic_root_dir, thresh_file_synthetic_train)
 
-thresh_file_historical_valid = "lilypond-dataset/newdef_gt_final.valid.thresh"
+thresh_file_historical_valid = "../historical-dataset/newdef_gt_final.valid.thresh"
 historical_dataset_valid = CustomDatasetResnet(historical_root_dir, thresh_file_historical_valid)
-thresh_file_synthetic_valid = "lilypond-dataset/lilypond.valid.thresh"
+thresh_file_synthetic_valid = "../lilypond-dataset/lilypond.valid.thresh"
 synthetic_dataset_valid = CustomDatasetResnet(synthetic_root_dir, thresh_file_synthetic_valid)
 # Use DataLoader to load data in parallel and move to GPU
 batch_size = 16
@@ -332,7 +325,7 @@ if __name__ == '__main__':
     # Clear GPU cache at the end of the training
     torch.cuda.empty_cache()
     # Test Dataset
-    thresh_file_test = "lilypond-dataset/newdef_gt_final.test.thresh"
+    thresh_file_test = "../historical-dataset/newdef_gt_final.test.thresh"
     test_dataset = CustomDatasetResnet(historical_root_dir, thresh_file_test)
 
     test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=False,

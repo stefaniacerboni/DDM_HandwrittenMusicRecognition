@@ -4,7 +4,7 @@ import cv2
 import os
 import numpy as np
 from pdf2image import convert_from_path
-from PIL import Image, ImageOps
+from PIL import ImageOps
 from tqdm import tqdm
 
 from new_mapping import human_readable_rhythm_mapping, human_readable_pitch_mapping

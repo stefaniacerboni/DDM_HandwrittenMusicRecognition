@@ -1,11 +1,11 @@
 import torch
 import torch.nn.functional as F
+from utils import *
 from torch.utils.data import DataLoader, random_split, ConcatDataset
 from tqdm import tqdm
 
 from CustomDatasetSeq2Seq import CustomDatasetSeq2Seq
 from Seq2Seq import Seq2Seq
-from mappingCombined import combined_mapping, inverse_mapping
 from new_mapping_combined import new_mapping_combined, inverse_new_mapping_combined
 
 
@@ -44,14 +44,6 @@ def collate_fn(batch):
 
     return images, torch.tensor(padded_labels)
 
-def cer_wer(decoded_sequence, ground_truth_sequence):
-    S = sum(1 for x, y in zip(decoded_sequence, ground_truth_sequence) if x != y)
-    D = abs(len(decoded_sequence) - len(ground_truth_sequence))
-    I = abs(len(decoded_sequence) - len(ground_truth_sequence))
-    N = len(ground_truth_sequence)
-    cer = (S + D + I) / N
-    return cer
-
 def validate():
     model.eval()
 
@@ -83,7 +75,7 @@ def validate():
 
 def test():
     # Test Dataset
-    thresh_file_test = "lilypond-dataset/newdef_gt_final.test.thresh"
+    thresh_file_test = "../historical-dataset/newdef_gt_final.test.thresh"
     test_dataset = CustomDatasetSeq2Seq(historical_root_dir, thresh_file_test)
 
     test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=True,
@@ -117,7 +109,7 @@ def test():
         average_loss_test = total_loss_test / len(test_loader.dataset)
         return average_loss_test
 '''
-root_dir = "words"
+root_dir = "historical-dataset/words"
 thresh_file_train = "lilypond-dataset/newdef_gt_final.train.thresh"
 train_dataset = CustomDatasetSeq2Seq(root_dir, thresh_file_train)
 # Use DataLoader to load data in parallel and move to GPU
@@ -132,16 +124,16 @@ valid_loader = DataLoader(dataset=valid_dataset, batch_size=batch_size, collate_
                           pin_memory=True)
 #vocab_size = 98
 '''
-historical_root_dir = "words"
-thresh_file_historical_train = "lilypond-dataset/newdef_gt_final.train.thresh"
+historical_root_dir = "../historical-dataset/words"
+thresh_file_historical_train = "../historical-dataset/newdef_gt_final.train.thresh"
 historical_dataset_train = CustomDatasetSeq2Seq(historical_root_dir, thresh_file_historical_train)
-synthetic_root_dir = "lilypond-dataset/words"
-thresh_file_synthetic_train = "lilypond-dataset/lilypond.train.thresh"
+synthetic_root_dir = "../lilypond-dataset/words"
+thresh_file_synthetic_train = "../lilypond-dataset/lilypond.train.thresh"
 synthetic_dataset_train = CustomDatasetSeq2Seq(synthetic_root_dir, thresh_file_synthetic_train)
 
-thresh_file_historical_valid = "lilypond-dataset/newdef_gt_final.valid.thresh"
+thresh_file_historical_valid = "../historical-dataset/newdef_gt_final.valid.thresh"
 historical_dataset_valid = CustomDatasetSeq2Seq(historical_root_dir, thresh_file_historical_valid)
-thresh_file_synthetic_valid = "lilypond-dataset/lilypond.valid.thresh"
+thresh_file_synthetic_valid = "../lilypond-dataset/lilypond.valid.thresh"
 synthetic_dataset_valid = CustomDatasetSeq2Seq(synthetic_root_dir, thresh_file_synthetic_valid)
 vocab_size = 690
 model = Seq2Seq(vocab_size)

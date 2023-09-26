@@ -398,7 +398,7 @@ for key, value in inverse_rhythm_mapping.items():
                 current_value += 1
 
 # Write the new mapping to a file
-with open("new_mapping_combined.py", "w") as file:
+with open("../seq2seq-model/new_mapping_combined.py", "w") as file:
     file.write("new_mapping_combined = {\n")
     for key, value in new_mapping.items():
         file.write(f"    '{key}': {value},\n")

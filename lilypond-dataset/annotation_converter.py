@@ -112,20 +112,20 @@ for old_key, new_key in conversion_map.items():
     print(f"{old_key} ---> {new_key}")
 
 # Applica la conversione ai tre file di input e scrive i file con le nuove annotazioni
-with open("../gt_final.valid.thresh", "r") as infile:
+with open("../historical-dataset/gt_final.valid.thresh", "r") as infile:
     lines = infile.readlines()
 converted_lines = [convert_classes(line) for line in lines]
-with open("newdef_gt_final.valid.thresh", "w") as outfile:
+with open("../historical-dataset/newdef_gt_final.valid.thresh", "w") as outfile:
     outfile.writelines(converted_lines)
 
-with open("../gt_final.train.thresh", "r") as infile:
+with open("../historical-dataset/gt_final.train.thresh", "r") as infile:
     lines = infile.readlines()
 converted_lines = [convert_classes(line) for line in lines]
-with open("newdef_gt_final.train.thresh", "w") as outfile:
+with open("../historical-dataset/newdef_gt_final.train.thresh", "w") as outfile:
     outfile.writelines(converted_lines)
 
-with open("../gt_final.test.thresh", "r") as infile:
+with open("../historical-dataset/gt_final.test.thresh", "r") as infile:
     lines = infile.readlines()
 converted_lines = [convert_classes(line) for line in lines]
-with open("newdef_gt_final.test.thresh", "w") as outfile:
+with open("../historical-dataset/newdef_gt_final.test.thresh", "w") as outfile:
     outfile.writelines(converted_lines)
