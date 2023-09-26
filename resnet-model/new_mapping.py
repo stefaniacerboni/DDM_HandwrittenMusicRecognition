@@ -396,24 +396,17 @@ for key, value in inverse_rhythm_mapping.items():
             if note_key.startswith('L') or note_key.startswith('S'):
                 new_mapping[f'{key}.{note_key}'] = current_value
                 current_value += 1
-
+# Create the inverse mapping
+inverse_mapping = {v: k for k, v in new_mapping.items()}
 # Write the new mapping to a file
 with open("../seq2seq-model/new_mapping_combined.py", "w") as file:
     file.write("new_mapping_combined = {\n")
+    for key, value in inverse_mapping.items():
+        file.write(f"    {key}: '{value}',\n")
+    file.write("}\n")
+    file.write("inverse_new_mapping_combined = {\n")
     for key, value in new_mapping.items():
         file.write(f"    '{key}': {value},\n")
     file.write("}\n")
 
 print("Mapping has been written to 'new_mapping_combined.py'")
-
-# Create the inverse mapping
-inverse_mapping = {v: k for k, v in new_mapping.items()}
-
-# Write the inverse mapping to a file
-with open("inverse_mapping_combined.py", "w") as file:
-    file.write("inverse_mapping_combined = {\n")
-    for key, value in inverse_mapping.items():
-        file.write(f"    {key}: '{value}',\n")
-    file.write("}\n")
-
-print("Inverse mapping has been written to 'inverse_mapping_combined.py'")

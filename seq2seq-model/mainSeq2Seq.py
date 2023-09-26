@@ -135,72 +135,49 @@ thresh_file_historical_valid = "../historical-dataset/newdef_gt_final.valid.thre
 historical_dataset_valid = CustomDatasetSeq2Seq(historical_root_dir, thresh_file_historical_valid)
 thresh_file_synthetic_valid = "../lilypond-dataset/lilypond.valid.thresh"
 synthetic_dataset_valid = CustomDatasetSeq2Seq(synthetic_root_dir, thresh_file_synthetic_valid)
+
 vocab_size = 690
 model = Seq2Seq(vocab_size)
 #model.load_state_dict(torch.load('saveModels/seq2seq/model_checkpoint_epoch_70.pt'))
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 model.to(device)
 optimizer = torch.optim.SGD(model.parameters(), lr=0.05, momentum=0.9, weight_decay=1e-4)
 num_epochs = 100
-batch_size = 16
 best_val_ser = float('inf')
 patience = 2  # Number of epochs with increasing validation loss to tolerate
 current_patience = 0
-# Calculate the dataset sizes based on proportions
-total_samples_train = len(historical_dataset_train)
-initial_historical_size_train = int(0.1 * total_samples_train)
-
-# Create data loaders for the initial proportions
-initial_synthetic_data_train, _ = random_split(
-    synthetic_dataset_train,
-    [len(historical_dataset_train) - initial_historical_size_train, len(synthetic_dataset_train) - (len(historical_dataset_train) - initial_historical_size_train)]
-)
-initial_historical_data_train, _ = random_split(
-    historical_dataset_train,
-    [initial_historical_size_train, len(historical_dataset_train) - initial_historical_size_train ]
-)
-
-current_train_data_loader = DataLoader(ConcatDataset([initial_synthetic_data_train, initial_historical_data_train]), batch_size=batch_size, collate_fn=collate_fn, shuffle=True)
-current_valid_data_loader = DataLoader(synthetic_dataset_valid, batch_size=batch_size, collate_fn=collate_fn, shuffle=True)
+batch_size = 16
+#REGULAR TRAINING
+'''
+root_dir = "historical-dataset/words"
+thresh_file_train = "lilypond-dataset/newdef_gt_final.train.thresh"
+train_dataset = CustomDatasetSeq2Seq(root_dir, thresh_file_train)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=True, num_workers=4,
+                          pin_memory=True)
+thresh_file_valid = "gt_final.valid.thresh"
+valid_dataset = CustomDatasetSeq2Seq(root_dir, thresh_file_valid)
+# Create data loaders for validation and test sets
+valid_loader = DataLoader(dataset=valid_dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=True,
+                          num_workers=4,
+                          pin_memory=True)
+'''
+curriculum_training = True
+current_train_data_loader = get_curriculum_learning_loader(synthetic_dataset_train, historical_dataset_train,
+                                                           collate_fn, batch_size, 0.1)
+current_valid_data_loader = get_curriculum_learning_loader(synthetic_dataset_valid, historical_dataset_valid,
+                                                           collate_fn, batch_size, 1.0)
 
 if __name__ == '__main__':
     for epoch in range(num_epochs):
-        if epoch + 1 % 10 == 0:
-            current_proportion = 0.1 + (epoch // 10) * 0.1
-            current_historical_size = int(current_proportion * total_samples_train)
-
-            # Create data loaders for the initial proportions
-            current_synthetic_data_train, _ = random_split(
-                synthetic_dataset_train,
-                [len(historical_dataset_train) - current_historical_size,
-                 len(synthetic_dataset_train) - (len(historical_dataset_train) - current_historical_size)]
-            )
-            current_historical_data_train, _ = random_split(
-                historical_dataset_train,
-                [current_historical_size, len(historical_dataset_train) - current_historical_size]
-            )
-
-            # Create a new data loader with the current proportions
-            current_train_data_loader = DataLoader(ConcatDataset([current_synthetic_data_train, current_historical_data_train]), batch_size=batch_size, collate_fn=collate_fn, shuffle=True)
-
+        if epoch + 1 % 10 == 0 and curriculum_training is True:
+            current_proportion_train = 0.1 + (epoch // 10) * 0.1
+            current_train_data_loader = get_curriculum_learning_loader(synthetic_dataset_train,
+                                                                       historical_dataset_train,
+                                                                       collate_fn, batch_size, current_proportion_train)
             current_proportion_valid = 1.0 - (epoch // 10) * 0.1
-            current_historical_size_valid = int(current_proportion * len(historical_dataset_valid))
-
-            # Create data loaders for the initial proportions
-            current_synthetic_data_valid, _ = random_split(
-                synthetic_dataset_valid,
-                [len(historical_dataset_valid) - current_historical_size_valid,
-                 len(synthetic_dataset_valid) - (len(historical_dataset_valid) - current_historical_size_valid)]
-            )
-            current_historical_data_valid, _ = random_split(
-                historical_dataset_valid,
-                [current_historical_size_valid, len(historical_dataset_valid) - current_historical_size_valid]
-            )
-            # Create a new data loader with the current proportions
-            current_valid_data_loader = DataLoader(
-                ConcatDataset([current_synthetic_data_valid, current_historical_data_valid]), batch_size=batch_size, collate_fn=collate_fn,
-                shuffle=True)
+            current_valid_data_loader = get_curriculum_learning_loader(synthetic_dataset_valid,
+                                                                       historical_dataset_valid,
+                                                                       collate_fn, batch_size, current_proportion_valid)
 
         model.train()  # Set the model to training mode
         total_loss = 0.0
@@ -237,8 +214,6 @@ if __name__ == '__main__':
             avg_test_ser = test()
             print(f"Epoch [{epoch + 1}/{num_epochs}] - Train Loss: {average_loss:.4f} - Val SER: {avg_val_ser:.4f} - "
                   f"Test SER: {avg_test_ser:.4f}")
-
-
             # Check for early stopping
             if avg_val_ser < best_val_ser:
                 best_val_ser = avg_val_ser
