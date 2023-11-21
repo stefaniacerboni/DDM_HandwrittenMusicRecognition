@@ -27,3 +27,10 @@ The project aims to develop a system that recognizes handwritten music notation 
 
    ```bash
    git clone https://github.com/stefaniacerboni/DDM_HandwrittenMusicRecognition.git
+## Authors
+
+The development of this project was carried out by:
+
+- Stefania Cerboni.
+- Nicola Bertocci.
+
