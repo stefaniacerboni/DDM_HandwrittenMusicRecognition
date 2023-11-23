@@ -21,9 +21,14 @@ def get_curriculum_learning_loader(synthetic_dataset, historical_dataset, collat
          len(synthetic_dataset) - (total_historical_samples - historical_size)]
     )
     historical_data, _ = random_split(
-        total_historical_samples,
-        [historical_size, historical_size - historical_size]
+        historical_dataset,
+        [historical_size, total_historical_samples - historical_size]
     )
     data_loader = DataLoader(ConcatDataset([synthetic_data, historical_data]),
+                             batch_size=batch_size, collate_fn=collate_fn, shuffle=True)
+    return data_loader
+
+def get_mixed_dataset_loader(synthetic_dataset, historical_dataset, collate_fn, batch_size):
+    data_loader = DataLoader(ConcatDataset([synthetic_dataset, historical_dataset]),
                              batch_size=batch_size, collate_fn=collate_fn, shuffle=True)
     return data_loader

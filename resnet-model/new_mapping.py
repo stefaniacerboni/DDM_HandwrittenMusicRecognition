@@ -369,7 +369,7 @@ inverse_human_readable_pitch_mapping = {
     'S5': 55,
     'S6': 56
 }
-
+'''
 # Create a new mapping with incremental values
 new_mapping = {}
 current_value = 0
@@ -408,5 +408,4 @@ with open("../seq2seq-model/new_mapping_combined.py", "w") as file:
     for key, value in new_mapping.items():
         file.write(f"    '{key}': {value},\n")
     file.write("}\n")
-
-print("Mapping has been written to 'new_mapping_combined.py'")
+print("Mapping has been written to 'new_mapping_combined.py'")'''

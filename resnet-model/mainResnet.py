@@ -59,30 +59,6 @@ def collate_fn(batch):
     return images, torch.tensor(padded_rhythm_labels), torch.tensor(padded_pitch_labels)
 
 
-# Preprocess dell'input nel modello con la Resnet. Le immagini hanno già tutte la stessa dimensione, non vanno adattate
-# alla dimensione massima del batch (le immagini di una resnet devono avere dimensione 224x224). Si paddano solo le
-# sequenze, con "-1". Nel calcolo della CTC vengono considerati solo i valori >0 nelle sequenze, in modo da non
-# "sporcare" l'apprendimento
-'''
-def collate_fn2(batch):
-    images = torch.stack([item[0] for item in batch])
-    rhythm_labels_list = [item[1] for item in batch]
-    pitch_labels_list = [item[2] for item in batch]
-
-    # Encode string labels to numerical values using mapping
-    batch_rhythm_labels_encoded = [[inverse_rhythm_mapping[labels] for labels in row] for row in rhythm_labels_list]
-    batch_pitch_labels_encoded = [[inverse_pitch_mapping[labels] for labels in row] for row in pitch_labels_list]
-
-    # Calculate the maximum sequence length
-    max_sequence_length = max(len(row) for row in batch_rhythm_labels_encoded)
-
-    # Pad sequences with -1 values
-    padded_rhythm_labels = [row + [-1] * (max_sequence_length - len(row)) for row in batch_rhythm_labels_encoded]
-    padded_pitch_labels = [row + [-1] * (max_sequence_length - len(row)) for row in batch_pitch_labels_encoded]
-
-    return images, torch.tensor(padded_rhythm_labels), torch.tensor(padded_pitch_labels)
-'''
-
 def process_output(rhythm_probs, pitch_probs):
     # 1. Estrazione dei Simboli Massimi
     rhythm_indices = torch.argmax(rhythm_probs, dim=1)
@@ -139,7 +115,7 @@ def validate():
 
                 batch_labels_recombined = []
                 for j in range(len(rhythm_labels_unpadded)):
-                    if rhythm_labels_unpadded[j].item() != 1:
+                    if rhythm_labels_unpadded[j].item() != 1: #if it's not epsilon
                         batch_labels_recombined.append(
                             rhythm_mapping[rhythm_labels_unpadded[j].item()] + "." + pitch_mapping[
                                 pitch_labels_unpadded[j].item()])
@@ -154,28 +130,25 @@ def validate():
         average_loss_valid = total_loss_valid / len(current_valid_data_loader.dataset)
         return average_loss_valid
 
-'''
+root_dir = "../lilypond-dataset/words"
 # Create the custom dataset
-root_dir = "historical-dataset/words"
-#thresh_file_train = "gt_final.train.thresh"
-thresh_file_train = "lilypond-dataset/lilypond.train.thresh"
+thresh_file_train = "../lilypond-dataset/lilypond.train.thresh"
+#thresh_file_train = "lilypond-dataset/gt_final.train.thresh"
 train_dataset = CustomDatasetResnet(root_dir, thresh_file_train)
 # Use DataLoader to load data in parallel and move to GPU
 batch_size = 16
-train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate_fn2, shuffle=True, num_workers=4,
+train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=True, num_workers=4,
                           pin_memory=True)
-
+#root_dir = "../historical-dataset/words"
 # Validation Dataset
-#thresh_file_valid = "gt_final.valid.thresh"
-thresh_file_valid = "lilypond-dataset/lilypond.valid.thresh"
+#thresh_file_valid = "../historical-dataset/newdef_gt_final.valid.thresh"
+thresh_file_valid = "../lilypond-dataset/lilypond.valid.thresh"
 valid_dataset = CustomDatasetResnet(root_dir, thresh_file_valid)
 # Create data loaders for validation and test sets
-valid_loader = DataLoader(dataset=valid_dataset, batch_size=batch_size, collate_fn=collate_fn2, shuffle=False,
+valid_loader = DataLoader(dataset=valid_dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=False,
                           num_workers=4,
                           pin_memory=True)
-train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate_fn2, shuffle=True, num_workers=4,
-                          pin_memory=True)
-'''
+
 historical_root_dir = "../historical-dataset/words"
 thresh_file_historical_train = "../historical-dataset/newdef_gt_final.train.thresh"
 historical_dataset_train = CustomDatasetResnet(historical_root_dir, thresh_file_historical_train)
@@ -187,6 +160,7 @@ thresh_file_historical_valid = "../historical-dataset/newdef_gt_final.valid.thre
 historical_dataset_valid = CustomDatasetResnet(historical_root_dir, thresh_file_historical_valid)
 thresh_file_synthetic_valid = "../lilypond-dataset/lilypond.valid.thresh"
 synthetic_dataset_valid = CustomDatasetResnet(synthetic_root_dir, thresh_file_synthetic_valid)
+
 batch_size = 16
 
 
@@ -196,33 +170,26 @@ batch_size = 16
 model = OMRModelResNet18(num_rhythm_classes=63, num_pitch_classes=17)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Load the saved model's state dictionary
-#model.load_state_dict(torch.load('saveModels/lilypond/model_checkpoint_epoch_100.pt'))
+#model.load_state_dict(torch.load('../saveModels/resnet18/model_checkpoint_epoch_200.pt'))
 model.to(device)
 # Define the optimizer
 optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
-num_epochs = 100
+num_epochs = 250
 best_val_loss = float('inf')
-patience = 1  # Number of epochs with increasing validation loss to tolerate
+patience = 2  # Number of epochs with increasing validation loss to tolerate
 current_patience = 0
-curriculum_training = True
-current_train_data_loader = get_curriculum_learning_loader(synthetic_dataset_train, historical_dataset_train, collate_fn, batch_size, 0.1)
-current_valid_data_loader = get_curriculum_learning_loader(synthetic_dataset_valid, historical_dataset_train, collate_fn, batch_size, 1.0)
-
+current_proportion_train = 0.1
+#current_train_data_loader = get_curriculum_learning_loader(synthetic_dataset_train, historical_dataset_train, collate_fn, batch_size, current_proportion_train)
+#current_valid_data_loader = get_curriculum_learning_loader(synthetic_dataset_valid, historical_dataset_valid, collate_fn, batch_size, 1.0)
+curriculum_training = False
+current_train_data_loader = train_loader
+current_valid_data_loader = valid_loader
+#current_train_data_loader = get_mixed_dataset_loader(synthetic_dataset_train, historical_dataset_train, collate_fn, batch_size)
+#current_valid_data_loader = get_mixed_dataset_loader(synthetic_dataset_valid, historical_dataset_valid, collate_fn, batch_size)
+n = 0
 if __name__ == '__main__':
-    for epoch in range(num_epochs):
-        if epoch + 1 % 10 == 0:
-            if epoch + 1 % 10 == 0 and curriculum_training is True:
-                current_proportion_train = 0.1 + (epoch // 10) * 0.1
-                current_train_data_loader = get_curriculum_learning_loader(synthetic_dataset_train,
-                                                                           historical_dataset_train,
-                                                                           collate_fn, batch_size,
-                                                                           current_proportion_train)
-                current_proportion_valid = 1.0 - (epoch // 10) * 0.1
-                current_valid_data_loader = get_curriculum_learning_loader(synthetic_dataset_valid,
-                                                                           historical_dataset_valid,
-                                                                           collate_fn, batch_size,
-                                                                           current_proportion_valid)
 
+    for epoch in range(num_epochs):
         # Training loop
         model.train()  # Set the model to training mode
         total_loss = 0.0
@@ -265,14 +232,13 @@ if __name__ == '__main__':
                 tepoch.set_postfix(loss=total_loss / len(tepoch))  # Display average loss in the progress bar
         # Print the average loss for the epoch
         average_loss = total_loss / len(current_train_data_loader)
-        print(f"Epoch [{epoch + 1}/{num_epochs}] - Loss: {average_loss:.4f}")
-        if (epoch+1) % 10 == 0:
-            save_path = f"saveModels/combinedTraining/model_checkpoint_epoch_{epoch+1}.pt"
+        print(f"Epoch [{epoch + 1 }/{num_epochs}] - Loss: {average_loss:.4f}")
+        if (epoch + 1) % 10 == 0:
+            save_path = f"../saveModels/resnet18/model_checkpoint_epoch_{epoch+1 }.pt"
             torch.save(model.state_dict(), save_path)
-            print(f"Model saved at epoch {epoch+1} - Checkpoint: {save_path}")
+            print(f"Model saved at epoch {epoch+1 } - Checkpoint: {save_path}")
             avg_val_loss = validate()
-            print(f"Epoch [{epoch + 1}/{num_epochs}] - Train Loss: {average_loss:.4f} - Val Loss: {avg_val_loss:.4f}")
-            '''
+            print(f"Epoch [{epoch + 1 }/{num_epochs}] - Train Loss: {average_loss:.4f} - Val Loss: {avg_val_loss:.4f}")
             # Check for early stopping
             if avg_val_loss < best_val_loss:
                 best_val_loss = avg_val_loss
@@ -281,15 +247,33 @@ if __name__ == '__main__':
                 current_patience += 1
                 if current_patience >= patience:
                     print("Early stopping triggered.")
-                    break
-                    '''
+                    if curriculum_training is True:
+                        n+=1
+                        if n==10:
+                            break
+                        current_proportion_train = 0.1 + n * 0.1
+                        current_train_data_loader = get_curriculum_learning_loader(synthetic_dataset_train,
+                                                                                       historical_dataset_train,
+                                                                                       collate_fn, batch_size,
+                                                                                       current_proportion_train)
+                        current_proportion_valid = 1.0 - n * 0.1
+                        current_valid_data_loader = get_curriculum_learning_loader(synthetic_dataset_valid,
+                                                                                       historical_dataset_valid,
+                                                                                       collate_fn, batch_size,
+                                                                                       current_proportion_valid)
+                        current_patience = 0
+                    #else:
+                    #    break
+                # break
         torch.cuda.empty_cache()
     #torch.save(model.state_dict(), 'saveModels/trained_model005lr.pth')
     # Clear GPU cache at the end of the training
     torch.cuda.empty_cache()
+
     # Test Dataset
-    thresh_file_test = "../historical-dataset/newdef_gt_final.test.thresh"
-    test_dataset = CustomDatasetResnet(historical_root_dir, thresh_file_test)
+    #thresh_file_test = "../historical-dataset/newdef_gt_final.test.thresh"
+    thresh_file_test = "../lilypond-dataset/lilypond.test.thresh"
+    test_dataset = CustomDatasetResnet(synthetic_root_dir, thresh_file_test)
 
     test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=False,
                              num_workers=4,
@@ -313,7 +297,7 @@ if __name__ == '__main__':
 
                 batch_labels_recombined = []
                 for j in range(len(rhythm_labels_unpadded)):
-                    if rhythm_labels_unpadded[j].item() != 1:
+                    if rhythm_labels_unpadded[j].item() != 1: #if it's not epsilon
                         batch_labels_recombined.append(
                             rhythm_mapping[rhythm_labels_unpadded[j].item()] + "." + pitch_mapping[
                                 pitch_labels_unpadded[j].item()])

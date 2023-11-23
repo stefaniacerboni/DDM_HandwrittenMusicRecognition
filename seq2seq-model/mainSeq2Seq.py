@@ -6,6 +6,7 @@ from tqdm import tqdm
 
 from CustomDatasetSeq2Seq import CustomDatasetSeq2Seq
 from Seq2Seq import Seq2Seq
+#from mappingCombined import combined_mapping, inverse_mapping
 from new_mapping_combined import new_mapping_combined, inverse_new_mapping_combined
 
 
@@ -39,8 +40,8 @@ def collate_fn(batch):
     # Calculate the maximum sequence length
     max_sequence_length = max(len(row) for row in batch_labels)
 
-    # Pad sequences with -1 values
-    padded_labels = [row + [0] * (max_sequence_length - len(row)) for row in batch_labels_encoded]
+    # Pad sequences with 0/1 values
+    padded_labels = [row + [1] * (max_sequence_length - len(row)) for row in batch_labels_encoded]
 
     return images, torch.tensor(padded_labels)
 
@@ -75,8 +76,11 @@ def validate():
 
 def test():
     # Test Dataset
-    thresh_file_test = "../historical-dataset/newdef_gt_final.test.thresh"
-    test_dataset = CustomDatasetSeq2Seq(historical_root_dir, thresh_file_test)
+    #thresh_file_test = "../historical-dataset/newdef_gt_final.test.thresh"
+    #thresh_file_test = "../historical-dataset/gt_final.test.thresh"
+    thresh_file_test = "../lilypond-dataset/lilypond.test.thresh"
+    #test_dataset = CustomDatasetSeq2Seq(historical_root_dir, thresh_file_test)
+    test_dataset = CustomDatasetSeq2Seq(synthetic_root_dir, thresh_file_test)
 
     test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=True,
                              num_workers=4,
@@ -108,22 +112,21 @@ def test():
         # Print the average Test loss
         average_loss_test = total_loss_test / len(test_loader.dataset)
         return average_loss_test
-'''
-root_dir = "historical-dataset/words"
-thresh_file_train = "lilypond-dataset/newdef_gt_final.train.thresh"
+root_dir = "../lilypond-dataset/words"
+thresh_file_train = "../lilypond-dataset/lilypond.train.thresh"
 train_dataset = CustomDatasetSeq2Seq(root_dir, thresh_file_train)
+batch_size = 16
 # Use DataLoader to load data in parallel and move to GPU
-
 train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=True, num_workers=4,
                           pin_memory=True)
-thresh_file_valid = "gt_final.valid.thresh"
+#root_dir = "../historical-dataset/words"
+thresh_file_valid = "../lilypond-dataset/lilypond.valid.thresh"
 valid_dataset = CustomDatasetSeq2Seq(root_dir, thresh_file_valid)
 # Create data loaders for validation and test sets
 valid_loader = DataLoader(dataset=valid_dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=True,
                           num_workers=4,
                           pin_memory=True)
 #vocab_size = 98
-'''
 historical_root_dir = "../historical-dataset/words"
 thresh_file_historical_train = "../historical-dataset/newdef_gt_final.train.thresh"
 historical_dataset_train = CustomDatasetSeq2Seq(historical_root_dir, thresh_file_historical_train)
@@ -135,20 +138,18 @@ thresh_file_historical_valid = "../historical-dataset/newdef_gt_final.valid.thre
 historical_dataset_valid = CustomDatasetSeq2Seq(historical_root_dir, thresh_file_historical_valid)
 thresh_file_synthetic_valid = "../lilypond-dataset/lilypond.valid.thresh"
 synthetic_dataset_valid = CustomDatasetSeq2Seq(synthetic_root_dir, thresh_file_synthetic_valid)
-
 vocab_size = 690
 model = Seq2Seq(vocab_size)
-#model.load_state_dict(torch.load('saveModels/seq2seq/model_checkpoint_epoch_70.pt'))
+#model.load_state_dict(torch.load('../saveModels/seq2seq/model_checkpoint_epoch_70.pt'))
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)
 optimizer = torch.optim.SGD(model.parameters(), lr=0.05, momentum=0.9, weight_decay=1e-4)
-num_epochs = 100
+num_epochs = 250
 best_val_ser = float('inf')
 patience = 2  # Number of epochs with increasing validation loss to tolerate
 current_patience = 0
-batch_size = 16
-#REGULAR TRAINING
-'''
+
+'''#REGULAR TRAINING
 root_dir = "historical-dataset/words"
 thresh_file_train = "lilypond-dataset/newdef_gt_final.train.thresh"
 train_dataset = CustomDatasetSeq2Seq(root_dir, thresh_file_train)
@@ -160,12 +161,14 @@ valid_dataset = CustomDatasetSeq2Seq(root_dir, thresh_file_valid)
 valid_loader = DataLoader(dataset=valid_dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=True,
                           num_workers=4,
                           pin_memory=True)
-'''
-curriculum_training = True
-current_train_data_loader = get_curriculum_learning_loader(synthetic_dataset_train, historical_dataset_train,
-                                                           collate_fn, batch_size, 0.1)
-current_valid_data_loader = get_curriculum_learning_loader(synthetic_dataset_valid, historical_dataset_valid,
-                                                           collate_fn, batch_size, 1.0)
+                          '''
+curriculum_training = False
+current_train_data_loader = train_loader
+current_valid_data_loader = valid_loader
+#current_train_data_loader = get_mixed_dataset_loader(synthetic_dataset_train, historical_dataset_train, collate_fn, batch_size)
+#current_valid_data_loader = get_mixed_dataset_loader(synthetic_dataset_valid, historical_dataset_valid, collate_fn, batch_size)
+#current_train_data_loader = get_curriculum_learning_loader(synthetic_dataset_train, historical_dataset_train, collate_fn, batch_size, 0.1)
+#current_valid_data_loader = get_curriculum_learning_loader(synthetic_dataset_valid, historical_dataset_valid, collate_fn, batch_size, 1.0)
 
 if __name__ == '__main__':
     for epoch in range(num_epochs):
@@ -207,7 +210,7 @@ if __name__ == '__main__':
         average_loss = total_loss / len(current_train_data_loader)
         print(f"Epoch [{epoch + 1}/{num_epochs}] - Loss: {average_loss:.4f}")
         if (epoch + 1) % 10 == 0:
-            save_path = f"saveModels/model_checkpoint_epoch_{epoch+1}.pt"
+            save_path = f"../saveModels/seq2seq/model_checkpoint_epoch_{epoch+1}.pt"
             torch.save(model.state_dict(), save_path)
             print(f"Model saved at epoch {epoch+1} - Checkpoint: {save_path}")
             avg_val_ser = validate()
@@ -224,9 +227,9 @@ if __name__ == '__main__':
                     print("Early stopping triggered.")
                     break
         torch.cuda.empty_cache()
-    '''
+
     # Test Dataset
-    thresh_file_test = "lilypond-dataset/newdef_gt_final.test.thresh"
+    thresh_file_test = "../historical-dataset/newdef_gt_final.test.thresh"
     test_dataset = CustomDatasetSeq2Seq(historical_root_dir, thresh_file_test)
 
     test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=True,
@@ -252,12 +255,9 @@ if __name__ == '__main__':
                     else:
                         if batch_labels_remapped[len(batch_labels_remapped) - 1] != new_mapping_combined[batch_labels[i][j].item()]:
                             batch_labels_remapped.append(new_mapping_combined[batch_labels[i][j].item()])
-                print(process_output(output_seq[i]))
+                #print(process_output(output_seq[i]))
                 loss = cer_wer(process_output(output_seq[i]), "~".join(batch_labels_remapped))
                 total_loss_test += loss
         # Print the average Test loss
         average_loss_test = total_loss_test / len(test_loader.dataset)
         print(f"Test SER: {average_loss_test:.4f}")
-        '''
-
-
