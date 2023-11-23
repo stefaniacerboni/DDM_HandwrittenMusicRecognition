@@ -5,6 +5,7 @@ This repository contains code and resources for Handwritten Music Recognition us
 ## Overview
 
 The project aims to develop a system that recognizes handwritten music notation and converts it into a machine-readable format. It involves the comparison of two models: a BLSTM (Bidirectional LSTM) and a sequence-to-sequence neural network model with an attention mechanism for accurate recognition of musical symbols.
+Detailed information about the developement of the project can be found in the project report "DDM - Relazione Bertocci Cerboni.pdf".
 
 ## Features
 
